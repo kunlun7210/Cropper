@@ -120,25 +120,65 @@ function qualifies(profileLine, settings) {
   return darkEnough && luminanceEnough;
 }
 
+function findInteriorBoundary(profile, side, settings) {
+  const lineCount = profile.length;
+  const fromEdge = side === "top" || side === "left";
+  const direction = fromEdge ? -1 : 1;
+  const center = Math.floor(lineCount / 2);
+  const minimumRun = Math.max(6, Math.round(lineCount * Math.max(settings.minThickness / 100, 0.01)));
+  const maximumCrop = Math.floor(lineCount * 0.45);
+  const maximumDistance = Math.floor(lineCount * 0.5);
+
+  // Start at the likely subject area and walk toward the selected side. A
+  // real screenshot bar usually has a sharp transition from content to a
+  // long, uniform near-black run. Requiring a run avoids mistaking a single
+  // dark line or a dark object in the subject for a border.
+  let runLength = 0;
+  let runFirstIndex = null;
+  for (let offset = 0; offset <= maximumDistance; offset += 1) {
+    const index = center + offset * direction;
+    if (index < 0 || index >= lineCount) break;
+
+    if (qualifies(profile[index], settings)) {
+      if (runLength === 0) runFirstIndex = index;
+      runLength += 1;
+      if (runLength < minimumRun) continue;
+
+      // runFirstIndex is the inner edge of the run because the scan starts
+      // from the content and travels outward. Convert it to the amount to
+      // remove from the actual outside edge.
+      const boundary = fromEdge ? runFirstIndex + 1 : runFirstIndex;
+      const cropDepth = fromEdge ? boundary : lineCount - boundary;
+      if (cropDepth > maximumCrop) return 0;
+
+      const contentIndex = fromEdge ? boundary : boundary - 1;
+      if (contentIndex < 0 || contentIndex >= lineCount) return 0;
+      const borderMean = profile
+        .slice(fromEdge ? runFirstIndex - runLength + 1 : runFirstIndex,
+          fromEdge ? runFirstIndex + 1 : runFirstIndex + runLength)
+        .reduce((sum, line) => sum + line.meanMaxChannel, 0) / runLength;
+      const contentContrast = profile[contentIndex].meanMaxChannel - borderMean;
+      if (contentContrast < Math.max(12, settings.darkThreshold * 0.3)) return 0;
+      return cropDepth;
+    }
+
+    // A short dark patch inside a photo is not enough. Reset and keep
+    // scanning so a later, longer screenshot bar can still be found.
+    runLength = 0;
+    runFirstIndex = null;
+  }
+
+  return 0;
+}
+
 function detectSide(profile, side, settings) {
   const lineCount = profile.length;
   const minDepth = Math.max(3, Math.round(lineCount * settings.minThickness / 100));
   const maxDepth = Math.floor(lineCount * 0.45);
   const gapAllowance = Math.max(1, Math.round(lineCount * 0.002));
   const fromEdge = side === "top" || side === "left";
-  // Walk from the center toward the selected edge first. The edge-prefix pass
-  // below makes the final decision; keeping this pass separate makes the
-  // direction explicit and avoids assuming that the exact center is bright.
-  const center = Math.floor(lineCount / 2);
-  const direction = fromEdge ? -1 : 1;
-  for (let offset = 0; offset <= center; offset += 1) {
-    const index = center + offset * direction;
-    if (index < 0 || index >= lineCount) break;
-    qualifies(profile[index], settings);
-  }
 
-  // The center-out scan finds a candidate run. Now calculate the exact edge
-  // depth and require a long dark prefix from the actual outer edge.
+  // First preserve the original edge-connected detection for clean bars.
   let edgeDepth = 0;
   let edgeBadStreak = 0;
   for (let offset = 0; offset < maxDepth; offset += 1) {
@@ -152,7 +192,8 @@ function detectSide(profile, side, settings) {
     }
   }
 
-  if (edgeDepth < minDepth) return 0;
+  const interiorDepth = findInteriorBoundary(profile, side, settings);
+  if (edgeDepth < minDepth) return interiorDepth;
 
   const insideStart = fromEdge ? edgeDepth : lineCount - edgeDepth - 1;
   const boundaryWindow = Math.max(3, Math.round(lineCount * 0.006));
@@ -163,15 +204,19 @@ function detectSide(profile, side, settings) {
   }
 
   // If the whole image is near-black, there is no identifiable border.
-  if (contentLines < Math.ceil(boundaryWindow * 0.55)) return 0;
+  if (contentLines < Math.ceil(boundaryWindow * 0.55)) return interiorDepth;
 
   const averageEdgeDarkness = profile.slice(
     fromEdge ? 0 : lineCount - edgeDepth,
     fromEdge ? edgeDepth : lineCount,
   ).reduce((sum, line) => sum + line.meanMaxChannel, 0) / edgeDepth;
 
-  if (averageEdgeDarkness > settings.darkThreshold * 1.12) return 0;
-  return edgeDepth;
+  if (averageEdgeDarkness > settings.darkThreshold * 1.12) edgeDepth = 0;
+
+  // If a viewer/header sits outside the black bar, the bar is not connected
+  // to the image edge. The center-out pass catches that case and also wins
+  // when text interrupts a larger black region near the edge.
+  return Math.max(edgeDepth, interiorDepth);
 }
 
 function analyzeImage(image) {
