@@ -256,8 +256,12 @@ function outputType(item) {
 
 function outputName(item, index = null) {
   const original = item.file.name.replace(/\.[^.]+$/, "");
-  const suffix = index === null ? "" : `-${String(index + 1).padStart(2, "0")}`;
-  return `${original}-trimmed${suffix}.${outputType(item) === "image/png" ? "png" : "jpg"}`;
+  const extension = outputType(item) === "image/png" ? "png" : "jpg";
+  // Prefix batch files with their stable position. iOS may not preserve the
+  // order in which multiple shared files appear in Photos, but the numbered
+  // names keep the intended order attached to every exported image.
+  const prefix = index === null ? "" : `${String(index + 1).padStart(3, "0")}-`;
+  return `${prefix}${original}-trimmed.${extension}`;
 }
 
 function detectedLabel(values) {
@@ -459,9 +463,15 @@ async function shareAllItems() {
   $("status").textContent = `正在生成 ${items.length} 张处理结果…`;
   try {
     const files = [];
+    const shareStartTime = Date.now();
     for (let index = 0; index < items.length; index += 1) {
       const blob = await getOutputBlob(items[index]);
-      files.push(new File([blob], outputName(items[index], index), { type: outputType(items[index]) }));
+      files.push(new File([blob], outputName(items[index], index), {
+        type: outputType(items[index]),
+        // Keep a monotonically increasing timestamp as an additional order
+        // hint for importers that inspect file metadata.
+        lastModified: shareStartTime + index * 1000,
+      }));
     }
     let canShareFiles = false;
     try {
