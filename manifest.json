@@ -1,0 +1,10 @@
+{
+  "name": "四边扫描去黑边",
+  "short_name": "去黑边",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#080d17",
+  "theme_color": "#0b1220",
+  "lang": "zh-CN",
+  "description": "从中心向四边扫描，自动裁剪连续近黑色直线边框。"
+}

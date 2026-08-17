@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b1220" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>四边扫描去黑边</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">本地处理 · 不上传图片</p>
+          <h1>四边扫描去黑边</h1>
+          <p class="intro">从图片中心向上、下、左、右分别扫描，只裁剪连续的近黑色直线区域。</p>
+        </div>
+        <div class="badge">Beta</div>
+      </header>
+
+      <section class="panel import-panel">
+        <label class="file-picker">
+          <input id="fileInput" type="file" accept="image/*" multiple />
+          <span class="file-icon">＋</span>
+          <span>
+            <strong>选择图片</strong>
+            <small>支持 PNG、JPEG、WEBP，可多选</small>
+          </span>
+        </label>
+        <p id="status" class="status">还没有选择图片</p>
+      </section>
+
+      <section class="panel settings-panel">
+        <div class="section-heading">
+          <div>
+            <h2>检测参数</h2>
+            <p>默认设置偏保守，宁可少裁一点，也不误伤主体。</p>
+          </div>
+          <button id="resetSettings" class="text-button" type="button">恢复默认</button>
+        </div>
+
+        <div class="settings-grid">
+          <label class="setting">
+            <span>黑色阈值 <output id="darkThresholdValue">42</output></span>
+            <input id="darkThreshold" type="range" min="5" max="100" value="42" />
+            <small>像素 RGB 最大值低于此数才算近黑色</small>
+          </label>
+          <label class="setting">
+            <span>横/竖线覆盖率 <output id="coverageValue">92%</output></span>
+            <input id="coverage" type="range" min="70" max="100" value="92" />
+            <small>一行或一列中需要有多少比例接近黑色</small>
+          </label>
+          <label class="setting">
+            <span>最小黑边厚度 <output id="minThicknessValue">1.0%</output></span>
+            <input id="minThickness" type="range" min="0.2" max="8" step="0.1" value="1" />
+            <small>避免把偶然的黑线当成边框</small>
+          </label>
+          <label class="setting">
+            <span>保留边距 <output id="paddingValue">0 px</output></span>
+            <input id="padding" type="range" min="0" max="30" step="1" value="0" />
+            <small>裁剪后从检测边界向主体方向保留的像素</small>
+          </label>
+        </div>
+
+        <div class="side-options">
+          <span class="side-label">检测方向</span>
+          <label><input class="side-toggle" data-side="top" type="checkbox" checked /> 上</label>
+          <label><input class="side-toggle" data-side="bottom" type="checkbox" checked /> 下</label>
+          <label><input class="side-toggle" data-side="left" type="checkbox" checked /> 左</label>
+          <label><input class="side-toggle" data-side="right" type="checkbox" checked /> 右</label>
+          <button id="reanalyze" class="primary-button small" type="button">重新检测</button>
+        </div>
+      </section>
+
+      <section id="batchActions" class="batch-actions panel" hidden>
+        <div>
+          <strong id="batchSummary">已处理 0 张</strong>
+          <small>点击“分享并保存全部”，在 iPhone 系统面板中选择“存储图像”。</small>
+        </div>
+        <div class="batch-buttons">
+          <button id="shareAll" class="primary-button" type="button">分享并保存全部</button>
+          <button id="downloadAll" class="secondary-button" type="button">逐张下载</button>
+        </div>
+      </section>
+
+      <section id="results" class="results" aria-live="polite"></section>
+
+      <footer class="footer-note">
+        <p>算法只判断边缘是否形成连续的近黑色直线区域。纯黑图片、主体本身贴边或黑边与主体连成一体时，请在结果卡片中手动微调。</p>
+        <p>首次打开后可在 Safari 中点“分享”→“添加到主屏幕”。</p>
+      </footer>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
