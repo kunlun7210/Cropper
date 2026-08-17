@@ -1,4 +1,4 @@
-const CACHE_NAME = "screenshot-trimmer-v2";
+const CACHE_NAME = "screenshot-trimmer-v3";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
