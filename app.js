@@ -1,3 +1,4 @@
+
 const DEFAULTS = {
   darkThreshold: 42,
   coverage: 92,
@@ -496,7 +497,7 @@ async function shareAllItems() {
     if (error.name !== "AbortError") $("status").textContent = `批量保存失败：${error.message || "请重试"}`;
   } finally {
     button.disabled = false;
-    button.textContent = "分享并保存全部";
+    button.textContent = "保存全部";
   }
 }
 
