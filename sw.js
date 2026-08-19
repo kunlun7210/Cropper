@@ -1,4 +1,4 @@
-const CACHE_NAME = "screenshot-trimmer-v3";
+const CACHE_NAME = "screenshot-trimmer-v4";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -14,3 +14,4 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
 });
+
