@@ -34,47 +34,57 @@
         <p id="status" class="status">还没有选择图片</p>
       </section>
 
-      <section class="panel settings-panel">
-        <div class="section-heading">
+      <details class="panel settings-panel">
+        <summary class="settings-summary">
           <div>
             <h2>检测参数</h2>
             <p>默认设置偏保守，宁可少裁一点，也不误伤主体。</p>
           </div>
-          <button id="resetSettings" class="text-button" type="button">恢复默认</button>
-        </div>
+          <span class="settings-toggle">
+            <span class="settings-toggle-open">展开参数</span>
+            <span class="settings-toggle-close">收起参数</span>
+            <span class="settings-chevron" aria-hidden="true">⌄</span>
+          </span>
+        </summary>
 
-        <div class="settings-grid">
-          <label class="setting">
-            <span>黑色阈值 <output id="darkThresholdValue">42</output></span>
-            <input id="darkThreshold" type="range" min="5" max="100" value="42" />
-            <small>像素 RGB 最大值低于此数才算近黑色</small>
-          </label>
-          <label class="setting">
-            <span>横/竖线覆盖率 <output id="coverageValue">92%</output></span>
-            <input id="coverage" type="range" min="70" max="100" value="92" />
-            <small>一行或一列中需要有多少比例接近黑色</small>
-          </label>
-          <label class="setting">
-            <span>最小黑边厚度 <output id="minThicknessValue">1.0%</output></span>
-            <input id="minThickness" type="range" min="0.2" max="8" step="0.1" value="1" />
-            <small>避免把偶然的黑线当成边框</small>
-          </label>
-          <label class="setting">
-            <span>保留边距 <output id="paddingValue">0 px</output></span>
-            <input id="padding" type="range" min="0" max="30" step="1" value="0" />
-            <small>裁剪后从检测边界向主体方向保留的像素</small>
-          </label>
-        </div>
+        <div class="settings-body">
+          <div class="settings-actions">
+            <button id="resetSettings" class="text-button" type="button">恢复默认</button>
+          </div>
 
-        <div class="side-options">
-          <span class="side-label">检测方向</span>
-          <label><input class="side-toggle" data-side="top" type="checkbox" checked /> 上</label>
-          <label><input class="side-toggle" data-side="bottom" type="checkbox" checked /> 下</label>
-          <label><input class="side-toggle" data-side="left" type="checkbox" checked /> 左</label>
-          <label><input class="side-toggle" data-side="right" type="checkbox" checked /> 右</label>
-          <button id="reanalyze" class="primary-button small" type="button">重新检测</button>
+          <div class="settings-grid">
+            <label class="setting">
+              <span>黑色阈值 <output id="darkThresholdValue">42</output></span>
+              <input id="darkThreshold" type="range" min="5" max="100" value="42" />
+              <small>像素 RGB 最大值低于此数才算近黑色</small>
+            </label>
+            <label class="setting">
+              <span>横/竖线覆盖率 <output id="coverageValue">92%</output></span>
+              <input id="coverage" type="range" min="70" max="100" value="92" />
+              <small>一行或一列中需要有多少比例接近黑色</small>
+            </label>
+            <label class="setting">
+              <span>最小黑边厚度 <output id="minThicknessValue">1.0%</output></span>
+              <input id="minThickness" type="range" min="0.2" max="8" step="0.1" value="1" />
+              <small>避免把偶然的黑线当成边框</small>
+            </label>
+            <label class="setting">
+              <span>保留边距 <output id="paddingValue">0 px</output></span>
+              <input id="padding" type="range" min="0" max="30" step="1" value="0" />
+              <small>裁剪后从检测边界向主体方向保留的像素</small>
+            </label>
+          </div>
+
+          <div class="side-options">
+            <span class="side-label">检测方向</span>
+            <label><input class="side-toggle" data-side="top" type="checkbox" checked /> 上</label>
+            <label><input class="side-toggle" data-side="bottom" type="checkbox" checked /> 下</label>
+            <label><input class="side-toggle" data-side="left" type="checkbox" checked /> 左</label>
+            <label><input class="side-toggle" data-side="right" type="checkbox" checked /> 右</label>
+            <button id="reanalyze" class="primary-button small" type="button">重新检测</button>
+          </div>
         </div>
-      </section>
+      </details>
 
       <section id="batchActions" class="batch-actions panel" hidden>
         <div>

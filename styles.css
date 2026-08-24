@@ -25,9 +25,13 @@ button, input { font: inherit; }
 button { cursor: pointer; }
 
 .app-shell {
-  width: min(100% - 28px, 980px);
+  width: min(100%, 1008px);
   margin: 0 auto;
-  padding: max(28px, env(safe-area-inset-top)) 0 36px;
+  padding:
+    max(28px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right))
+    max(36px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
 }
 
 .hero {
@@ -76,11 +80,21 @@ h2 { margin-bottom: 5px; font-size: 20px; }
 .file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .file-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #236cb7; font-size: 27px; }
 .file-picker strong, .file-picker small { display: block; }
-.file-picker small, .setting small, .section-heading p { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.file-picker small, .setting small, .settings-summary p { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .status { margin: 10px 4px 1px; color: var(--muted); font-size: 13px; }
 
-.section-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 18px; }
-.section-heading p { margin-bottom: 0; }
+.settings-summary { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; border-radius: 12px; cursor: pointer; list-style: none; }
+.settings-summary::-webkit-details-marker { display: none; }
+.settings-summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 5px; }
+.settings-summary p { margin-bottom: 0; }
+.settings-toggle { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-width: 104px; justify-content: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--blue); font-size: 13px; font-weight: 700; }
+.settings-toggle-close { display: none; }
+.settings-chevron { font-size: 17px; line-height: 1; transition: transform .2s ease; }
+.settings-panel[open] .settings-toggle-open { display: none; }
+.settings-panel[open] .settings-toggle-close { display: inline; }
+.settings-panel[open] .settings-chevron { transform: rotate(180deg); }
+.settings-body { margin-top: 17px; padding-top: 17px; border-top: 1px solid var(--line); }
+.settings-actions { display: flex; justify-content: flex-end; margin-bottom: 14px; }
 .text-button { padding: 4px 0; border: 0; background: none; color: var(--blue); font-size: 13px; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; }
 .setting { display: block; }
