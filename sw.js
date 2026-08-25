@@ -1,4 +1,4 @@
-const CACHE_NAME = "screenshot-trimmer-v5";
+const CACHE_NAME = "screenshot-trimmer-v6";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -14,14 +14,21 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || new URL(event.request.url).origin !== self.location.origin) return;
 
-  event.respondWith(fetch(event.request).then((response) => {
-    if (response.ok) {
-      const copy = response.clone();
-      event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)));
-    }
-    return response;
-  }).catch(() => caches.match(event.request).then((cached) => {
+  const refresh = fetch(event.request).then((response) => {
+    if (!response.ok) return response;
+
+    const copy = response.clone();
+    return caches.open(CACHE_NAME)
+      .then((cache) => cache.put(event.request, copy))
+      .then(() => response);
+  });
+
+  event.waitUntil(refresh.then(() => undefined, () => undefined));
+  event.respondWith(caches.match(event.request, { ignoreSearch: true }).then((cached) => {
     if (cached) return cached;
-    return event.request.mode === "navigate" ? caches.match("./") : Response.error();
-  })));
+
+    return refresh.catch(() => (
+      event.request.mode === "navigate" ? caches.match("./") : Response.error()
+    ));
+  }));
 });
