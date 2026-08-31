@@ -1,9 +1,11 @@
-const CACHE_NAME = "screenshot-trimmer-v7";
+const CACHE_NAME = "screenshot-trimmer-v8";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./app.js", "./manifest.json",
   "./icons/favicon-cai-v1.ico", "./icons/icon-cai-v1.svg",
   "./icons/icon-cai-v1-16.png", "./icons/icon-cai-v1-32.png", "./icons/icon-cai-v1-48.png",
-  "./icons/icon-cai-v1-180.png", "./icons/icon-cai-v1-192.png", "./icons/icon-cai-v1-512.png"
+  "./icons/icon-cai-v1-180.png", "./icons/icon-cai-v1-192.png", "./icons/icon-cai-v1-512.png",
+  "./favicon-qu-32.png", "./favicon-qu-48.png", "./apple-touch-icon-qu.png",
+  "./icon-qu-192.png", "./icon-qu-512.png"
 ];
 
 self.addEventListener("install", (event) => {

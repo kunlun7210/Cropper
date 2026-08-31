@@ -89,8 +89,11 @@ test('bookmark, Apple, PWA and preview references all use cai-v1 assets', () => 
   assert.match(html, /rel="manifest" href="manifest.json\?v=cai-v1"/);
   assert.match(html, /property="og:image" content="https:\/\/kunlun7210.github.io\/luban\/icons\/icon-cai-v1-512.png"/);
   assert.match(html, /name="twitter:image" content="https:\/\/kunlun7210.github.io\/luban\/icons\/icon-cai-v1-512.png"/);
-  assert.deepEqual(manifest.icons.map(icon => icon.src), [iconPath(192), iconPath(512)]);
-  for (const icon of manifest.icons) assert.equal(icon.purpose, 'any maskable');
+  assert.deepEqual(manifest.icons.map(icon => icon.src), [iconPath(180), iconPath(192), iconPath(512)]);
+  for (const icon of manifest.icons) assert.equal(icon.purpose, icon.sizes === '180x180' ? 'any' : 'any maskable');
+  assert.equal(manifest.scope, './');
+  assert.match(html, /name="apple-mobile-web-app-title" content="截图去黑边"/);
+  assert.equal((html.match(/property="og:image" /g) || []).length, 1);
   assert.doesNotMatch(html + JSON.stringify(manifest), /icon-qu|favicon-qu|subflow/);
   for (const icon of manifest.icons) assert.ok(existsSync(new URL(icon.src, root)));
 });
@@ -99,13 +102,18 @@ test('cache includes all declared icons and only removes this project old caches
   const handlers = {}, deleted = [];
   vm.runInNewContext(worker, {
     self: { addEventListener: (name, fn) => handlers[name] = fn, clients: { claim() {} } },
-    caches: { keys: async () => ['screenshot-trimmer-v6', 'screenshot-trimmer-v7', 'subflow-v9'], delete: async key => deleted.push(key) }
+    caches: { keys: async () => ['screenshot-trimmer-v6', 'screenshot-trimmer-v7', 'screenshot-trimmer-v8', 'subflow-v9'], delete: async key => deleted.push(key) }
   });
   let finished;
   handlers.activate({ waitUntil(promise) { finished = promise; } });
   await finished;
-  assert.deepEqual(deleted, ['screenshot-trimmer-v6']);
+  assert.deepEqual(deleted, ['screenshot-trimmer-v6', 'screenshot-trimmer-v7']);
   for (const file of [...sizes.map(iconPath), 'icons/icon-cai-v1.svg', 'icons/favicon-cai-v1.ico']) assert.ok(worker.includes(`./${file}`));
+});
+
+test('old bookmark icon URLs also serve 裁 rather than 去', () => {
+  const legacy = { 'favicon-qu-32.png': 32, 'favicon-qu-48.png': 48, 'apple-touch-icon-qu.png': 180, 'icon-qu-192.png': 192, 'icon-qu-512.png': 512 };
+  for (const [path, size] of Object.entries(legacy)) assert.deepEqual(read(path), read(iconPath(size)));
 });
 
 test('cached startup still returns before a slow background fetch', async () => {

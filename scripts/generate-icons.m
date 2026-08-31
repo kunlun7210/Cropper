@@ -61,6 +61,12 @@ int main(void) { @autoreleasepool {
         pngs[dimension] = png;
         CFRelease(destination); CGImageRelease(image); CGContextRelease(context); CGColorSpaceRelease(colorSpace);
     }
+    // Retain old URLs for already-saved bookmarks, but serve the same 裁 artwork.
+    NSDictionary *legacy = @{@"favicon-qu-32.png": @32, @"favicon-qu-48.png": @48,
+        @"apple-touch-icon-qu.png": @180, @"icon-qu-192.png": @192, @"icon-qu-512.png": @512};
+    for (NSString *name in legacy) {
+        if (![pngs[legacy[name]] writeToURL:[[output URLByDeletingLastPathComponent] URLByAppendingPathComponent:name] atomically:YES]) return 7;
+    }
     NSMutableData *ico = [NSMutableData data];
     appendLE(ico, 0, 2); appendLE(ico, 1, 2); appendLE(ico, 3, 2);
     NSUInteger offset = 6 + 3 * 16;
