@@ -24,3 +24,17 @@
 网页不能绕过 iOS 权限直接写入照片库，因此最后一步仍由系统分享面板确认。若浏览器不支持多文件分享，可使用“逐张下载”。
 
 首次打开后可以使用 Safari 的“添加到主屏幕”。应用会优先从本地缓存启动并在后台更新，因此后续打开更快；它不需要服务器，也不上传图片。
+
+## 图标
+
+电脑书签、手机书签、手机主屏幕和网页预览统一使用深黑底、白色单字“裁”，不使用裁剪符号。SVG 字形已转为路径，所有 PNG 和 ICO 均来自同一字形，避免依赖设备字体。
+
+图标生成（macOS，在项目根目录运行）：
+
+```sh
+clang -fno-modules -framework Foundation -framework CoreText -framework CoreGraphics -framework ImageIO scripts/generate-icons.m -o /tmp/luban-generate-icons
+/tmp/luban-generate-icons
+node --test tests/icons.test.mjs
+```
+
+图标文件名带有版本号。发布新图标时需要同时更新 HTML、manifest、Service Worker 的引用和缓存版本。浏览器已保存的旧书签图片可能需要重新收藏此项目页面后才会更新，不必清除其他网站的数据。

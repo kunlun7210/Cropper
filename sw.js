@@ -1,5 +1,10 @@
-const CACHE_NAME = "screenshot-trimmer-v6";
-const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.json"];
+const CACHE_NAME = "screenshot-trimmer-v7";
+const ASSETS = [
+  "./", "./index.html", "./styles.css", "./app.js", "./manifest.json",
+  "./icons/favicon-cai-v1.ico", "./icons/icon-cai-v1.svg",
+  "./icons/icon-cai-v1-16.png", "./icons/icon-cai-v1-32.png", "./icons/icon-cai-v1-48.png",
+  "./icons/icon-cai-v1-180.png", "./icons/icon-cai-v1-192.png", "./icons/icon-cai-v1-512.png"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));
@@ -7,7 +12,7 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))));
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith("screenshot-trimmer-") && key !== CACHE_NAME).map((key) => caches.delete(key)))));
   self.clients.claim();
 });
 

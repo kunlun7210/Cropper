@@ -6,5 +6,9 @@
   "background_color": "#080d17",
   "theme_color": "#0b1220",
   "lang": "zh-CN",
-  "description": "从中心向四边扫描，自动裁剪连续近黑色直线边框。"
+  "description": "从中心向四边扫描，自动裁剪连续近黑色直线边框。",
+  "icons": [
+    { "src": "icons/icon-cai-v1-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-cai-v1-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
 }
