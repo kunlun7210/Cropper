@@ -18,12 +18,12 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-cai-v1-192.png" />
     <link rel="icon" type="image/svg+xml" sizes="any" href="icons/icon-cai-v1.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-cai-v1-180.png" />
-    <meta property="og:image" content="https://kunlun7210.github.io/luban/icons/icon-cai-v1-512.png" />
+    <meta property="og:image" content="https://kunlun7210.github.io/Cropper/icons/icon-cai-v1-512.png" />
     <meta property="og:image:width" content="512" />
     <meta property="og:image:height" content="512" />
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:alt" content="深黑底白色裁字图标" />
-    <meta name="twitter:image" content="https://kunlun7210.github.io/luban/icons/icon-cai-v1-512.png" />
+    <meta name="twitter:image" content="https://kunlun7210.github.io/Cropper/icons/icon-cai-v1-512.png" />
     <link rel="manifest" href="manifest.json?v=cai-v1" />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -85,9 +85,9 @@
               <small>避免把偶然的黑线当成边框</small>
             </label>
             <label class="setting">
-              <span>保留边距 <output id="paddingValue">0 px</output></span>
-              <input id="padding" type="range" min="0" max="30" step="1" value="0" />
-              <small>裁剪后从检测边界向主体方向保留的像素</small>
+              <span>边界微调 <output id="paddingValue">0 px</output></span>
+              <input id="padding" type="range" min="-5" max="30" step="1" value="0" />
+              <small>负数向主体内多裁，0 按检测边界裁剪，正数保留相应像素</small>
             </label>
           </div>
 

@@ -7,6 +7,7 @@ import vm from 'node:vm';
 const root = new URL('../', import.meta.url);
 const read = path => readFileSync(new URL(path, root));
 const html = read('index.html').toString();
+const app = read('app.js').toString();
 const worker = read('sw.js').toString();
 const manifest = JSON.parse(read('manifest.json'));
 const sizes = [16, 32, 48, 180, 192, 512];
@@ -87,8 +88,8 @@ test('bookmark, Apple, PWA and preview references all use cai-v1 assets', () => 
   assert.match(html, /rel="icon"[^>]+favicon-cai-v1.ico/);
   assert.match(html, /rel="icon"[^>]+icon-cai-v1.svg/);
   assert.match(html, /rel="manifest" href="manifest.json\?v=cai-v1"/);
-  assert.match(html, /property="og:image" content="https:\/\/kunlun7210.github.io\/luban\/icons\/icon-cai-v1-512.png"/);
-  assert.match(html, /name="twitter:image" content="https:\/\/kunlun7210.github.io\/luban\/icons\/icon-cai-v1-512.png"/);
+  assert.match(html, /property="og:image" content="https:\/\/kunlun7210.github.io\/Cropper\/icons\/icon-cai-v1-512.png"/);
+  assert.match(html, /name="twitter:image" content="https:\/\/kunlun7210.github.io\/Cropper\/icons\/icon-cai-v1-512.png"/);
   assert.deepEqual(manifest.icons.map(icon => icon.src), [iconPath(180), iconPath(192), iconPath(512)]);
   for (const icon of manifest.icons) assert.equal(icon.purpose, icon.sizes === '180x180' ? 'any' : 'any maskable');
   assert.equal(manifest.scope, './');
@@ -98,16 +99,40 @@ test('bookmark, Apple, PWA and preview references all use cai-v1 assets', () => 
   for (const icon of manifest.icons) assert.ok(existsSync(new URL(icon.src, root)));
 });
 
+test('boundary adjustment ranges from -5 to 30 and defaults to zero', () => {
+  assert.match(html, /<span>边界微调 <output id="paddingValue">0 px<\/output><\/span>/);
+  assert.match(html, /<input id="padding" type="range" min="-5" max="30" step="1" value="0"/);
+  assert.match(html, /负数向主体内多裁，0 按检测边界裁剪，正数保留相应像素/);
+});
+
+test('negative adjustment only trims sides where a border was detected', () => {
+  const elements = new Map();
+  const document = {
+    getElementById(id) {
+      if (!elements.has(id)) elements.set(id, { value: '0', textContent: '', hidden: false, innerHTML: '', addEventListener() {} });
+      return elements.get(id);
+    },
+    querySelectorAll() { return []; },
+  };
+  const context = vm.createContext({ document, navigator: {}, window: { isSecureContext: false }, structuredClone });
+  vm.runInContext(app, context);
+  const calculate = padding => JSON.parse(vm.runInContext(`state.settings.padding = ${padding}; JSON.stringify(applyPadding({ top: 8, bottom: 0, left: 3, right: 0 }))`, context));
+  assert.deepEqual(calculate(-5), { top: 13, bottom: 0, left: 8, right: 0 });
+  assert.deepEqual(calculate(-1), { top: 9, bottom: 0, left: 4, right: 0 });
+  assert.deepEqual(calculate(0), { top: 8, bottom: 0, left: 3, right: 0 });
+  assert.deepEqual(calculate(2), { top: 6, bottom: 0, left: 1, right: 0 });
+});
+
 test('cache includes all declared icons and only removes this project old caches', async () => {
   const handlers = {}, deleted = [];
   vm.runInNewContext(worker, {
     self: { addEventListener: (name, fn) => handlers[name] = fn, clients: { claim() {} } },
-    caches: { keys: async () => ['screenshot-trimmer-v6', 'screenshot-trimmer-v7', 'screenshot-trimmer-v8', 'subflow-v9'], delete: async key => deleted.push(key) }
+    caches: { keys: async () => ['screenshot-trimmer-v7', 'screenshot-trimmer-v8', 'screenshot-trimmer-v9', 'subflow-v9'], delete: async key => deleted.push(key) }
   });
   let finished;
   handlers.activate({ waitUntil(promise) { finished = promise; } });
   await finished;
-  assert.deepEqual(deleted, ['screenshot-trimmer-v6', 'screenshot-trimmer-v7']);
+  assert.deepEqual(deleted, ['screenshot-trimmer-v7', 'screenshot-trimmer-v8']);
   for (const file of [...sizes.map(iconPath), 'icons/icon-cai-v1.svg', 'icons/favicon-cai-v1.ico']) assert.ok(worker.includes(`./${file}`));
 });
 

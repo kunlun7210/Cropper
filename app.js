@@ -276,7 +276,10 @@ function detectedLabel(values) {
 
 function applyPadding(detected) {
   const padding = state.settings.padding;
-  return Object.fromEntries(Object.entries(detected).map(([side, value]) => [side, Math.max(0, value - padding)]));
+  return Object.fromEntries(Object.entries(detected).map(([side, value]) => [
+    side,
+    value > 0 ? Math.max(0, value - padding) : 0,
+  ]));
 }
 
 function renderEmpty() {
