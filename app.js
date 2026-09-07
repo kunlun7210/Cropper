@@ -47,6 +47,17 @@ function readSettings() {
   });
 }
 
+function applyChangedSettings() {
+  const previous = JSON.stringify(state.settings);
+  readSettings();
+  if (previous !== JSON.stringify(state.settings)) reanalyzeAll();
+}
+
+function settingsInput() {
+  updateControlLabels();
+  if (state.items.length) $("status").textContent = "参数已调整，松开滑块后自动应用。";
+}
+
 function resetSettings() {
   controls.darkThreshold.value = DEFAULTS.darkThreshold;
   controls.coverage.value = DEFAULTS.coverage;
@@ -152,6 +163,11 @@ function findInteriorBoundary(profile, side, settings) {
       const cropDepth = fromEdge ? boundary : lineCount - boundary;
       if (cropDepth > maximumCrop) return 0;
 
+      // A dark stripe inside the subject is not a border. Only accept a
+      // center-out candidate when its entire outside region is near-black.
+      const outside = fromEdge ? profile.slice(0, boundary) : profile.slice(boundary);
+      if (!outside.every((line) => qualifies(line, settings))) return 0;
+
       const contentIndex = fromEdge ? boundary : boundary - 1;
       if (contentIndex < 0 || contentIndex >= lineCount) return 0;
       const borderMean = profile
@@ -178,6 +194,7 @@ function detectSide(profile, side, settings) {
   const maxDepth = Math.floor(lineCount * 0.45);
   const gapAllowance = Math.max(1, Math.round(lineCount * 0.002));
   const fromEdge = side === "top" || side === "left";
+  if (!qualifies(profile[fromEdge ? 0 : lineCount - 1], settings)) return 0;
 
   // First preserve the original edge-connected detection for clean bars.
   let edgeDepth = 0;
@@ -214,9 +231,8 @@ function detectSide(profile, side, settings) {
 
   if (averageEdgeDarkness > settings.darkThreshold * 1.12) edgeDepth = 0;
 
-  // If a viewer/header sits outside the black bar, the bar is not connected
-  // to the image edge. The center-out pass catches that case and also wins
-  // when text interrupts a larger black region near the edge.
+  // Both candidates must be connected to the outside edge. Content outside
+  // an internal stripe is preserved, even if that means manual adjustment.
   return Math.max(edgeDepth, interiorDepth);
 }
 
@@ -294,8 +310,12 @@ function renderCard(item) {
   card.className = "result-card";
   card.dataset.itemId = item.id;
   const detected = item.detected;
+  if (item.image && !item.error) {
+    item.rendered = cropImage(item, item.values);
+    item.values = item.rendered.values;
+  }
   const values = item.values;
-  const dimensionText = item.image ? `原图 ${item.image.naturalWidth} × ${item.image.naturalHeight}px` : "无法读取图片";
+  const dimensionText = item.rendered ? `原图 ${item.image.naturalWidth} × ${item.image.naturalHeight}px · 输出 ${item.rendered.canvas.width} × ${item.rendered.canvas.height}px` : "无法读取图片";
   card.innerHTML = `
     <div class="result-head">
       <div>
@@ -305,6 +325,7 @@ function renderCard(item) {
       <p class="detected">${escapeHtml(detectedLabel(detected))}</p>
     </div>
     ${item.error ? `<p class="error">${escapeHtml(item.error)}</p>` : `
+      <p class="actual-crop">实际裁剪：上 ${values.top}px · 下 ${values.bottom}px · 左 ${values.left}px · 右 ${values.right}px</p>
       <div class="preview-grid">
         <div class="preview-block"><span>原图</span><canvas class="preview-canvas" width="1" height="1"></canvas></div>
         <div class="preview-block"><span>裁剪结果</span><img class="result-image" alt="裁剪结果" /></div>
@@ -329,13 +350,13 @@ function renderCard(item) {
   originalCanvas.height = item.image.naturalHeight;
   originalCanvas.getContext("2d").drawImage(item.image, 0, 0);
 
-  item.rendered = cropImage(item, values);
   const resultImage = card.querySelector(".result-image");
   resultImage.src = item.rendered.canvas.toDataURL(outputType(item));
 
   card.querySelectorAll("[data-side-input]").forEach((input) => {
     input.addEventListener("change", () => {
-      item.values[input.dataset.side] = clamp(Number(input.value) || 0, 0, 100000);
+      item.values[input.dataset.sideInput] = clamp(Number(input.value) || 0, 0, 100000);
+      renderCard(item);
     });
   });
   card.querySelector('[data-action="re-crop"]').addEventListener("click", () => {
@@ -383,6 +404,7 @@ async function loadFiles(fileList) {
       loaded.push({ id: `${Date.now()}-${index}`, file: files[index], error: error.message });
     }
   }
+  readSettings();
   state.items = loaded.map((item) => {
     if (item.error) return item;
     const analysis = analyzeImage(item.image);
@@ -403,9 +425,11 @@ function reanalyzeAll() {
     item.values = applyPadding(analysis.detected);
   });
   renderAll();
+  if (state.items.length) $("status").textContent = `已应用当前参数：边界微调 ${state.settings.padding} px；请查看实际裁剪量和输出尺寸。`;
 }
 
 function getOutputBlob(item) {
+  applyChangedSettings();
   item.rendered = cropImage(item, item.values);
   return new Promise((resolve) => {
     item.rendered.canvas.toBlob(resolve, outputType(item), outputType(item) === "image/jpeg" ? 0.96 : undefined);
@@ -504,7 +528,11 @@ async function shareAllItems() {
   }
 }
 
-Object.values(controls).forEach((control) => control.addEventListener("input", updateControlLabels));
+Object.values(controls).forEach((control) => {
+  control.addEventListener("input", settingsInput);
+  control.addEventListener("change", applyChangedSettings);
+});
+document.querySelectorAll(".side-toggle").forEach((control) => control.addEventListener("change", applyChangedSettings));
 $("fileInput").addEventListener("change", (event) => loadFiles(event.target.files));
 $("reanalyze").addEventListener("click", reanalyzeAll);
 $("resetSettings").addEventListener("click", resetSettings);
