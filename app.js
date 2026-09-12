@@ -517,15 +517,25 @@ $("downloadAll").addEventListener("click", () => downloadAllItems());
 updateControlLabels();
 renderEmpty();
 if ("serviceWorker" in navigator && window.isSecureContext) {
-  // 新版 Service Worker 一旦接管，自动刷新一次，避免继续停留在旧缓存里的界面。
+  // 新版本 Service Worker 接管后自动刷新，避免继续停留在旧缓存里的界面。两条保护：
+  //   1. 首次安装（此前没有 SW 接管）不刷新——那时页面本来就是刚从网络取的新版，
+  //      刷新只会白白多加载一次。
+  //   2. 手上已经导入图片时不刷新，避免把用户正在处理的这一批丢掉；新版本已经接管，
+  //      下次打开页面自然就是新版，这里只提示一句。
+  const hadController = Boolean(navigator.serviceWorker.controller);
   let reloadedForUpdate = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (reloadedForUpdate) return;
+    if (!hadController || reloadedForUpdate) return;
     reloadedForUpdate = true;
+    if (state.items.length) {
+      $("status").textContent = "已更新到新版本；为避免打断当前处理，刷新将在下次打开页面时生效。";
+      return;
+    }
     window.location.reload();
   });
   navigator.serviceWorker.register("sw.js").then((registration) => {
-    // 打开页面时主动查一次更新；从后台切回来时再查一次，省得一直跑旧版本。
+    // 打开时主动查一次更新；从后台切回来时再查一次，省得一直跑旧版本。
+    // update() 不阻塞渲染，断网时静默失败，不影响离线启动。
     registration.update().catch(() => {});
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) registration.update().catch(() => {});

@@ -193,20 +193,36 @@ async function main() {
   await page.locator('.hero h1').waitFor();
   await context.setOffline(false);
 
-  // 版本自动更新：换掉 sw.js 内容后触发 update()，页面应自动刷新，用户不必手动清缓存
-  let navigations = 0;
-  const onNav = (f) => { if (f === page.mainFrame()) navigations += 1; };
-  page.on('framenavigated', onNav);
-  await page.evaluate(() => { window.__stillOldBuild = true; });
+  // --- 自动更新：手上有图片时不打断当前处理 ---
+  await upload('border');
+  await page.evaluate(() => { window.__keep = 1; });
   swVariant = 'screenshot-trimmer-v15-autotest';
-  await page.evaluate(async () => {
-    const registration = await navigator.serviceWorker.getRegistration();
-    await registration.update();
-  });
-  await page.waitForFunction(() => window.__stillOldBuild === undefined, null, { timeout: 20000 });
-  page.off('framenavigated', onNav);
-  assert.ok(navigations >= 1, '应至少发生一次自动刷新');
-  console.log('PASS 检测到新版本后页面自动刷新（无需用户手动清缓存）');
+  await page.evaluate(async () => { (await navigator.serviceWorker.getRegistration()).update(); });
+  await page.waitForTimeout(3000);
+  assert.equal(await page.evaluate(() => window.__keep), 1, '有图片时不应自动刷新');
+  assert.match(await page.locator('#status').innerText(), /已更新到新版本/, '应提示新版本已就绪');
+  console.log('PASS 正在处理图片时遇到新版本不打断，只给出提示');
+
+  // --- 自动更新：空闲时自动刷新 ---
+  await page.reload();
+  await page.locator('.hero h1').waitFor();
+  await page.evaluate(() => { window.__keep2 = 1; });
+  swVariant = 'screenshot-trimmer-v16-autotest';
+  await page.evaluate(async () => { (await navigator.serviceWorker.getRegistration()).update(); });
+  await page.waitForFunction(() => window.__keep2 === undefined, null, { timeout: 20000 });
+  console.log('PASS 空闲时检测到新版本自动刷新（无需用户手动清缓存）');
+
+  // --- 首次安装不应该多刷新一次 ---
+  const freshContext = await browser.newContext({ viewport: { width: 402, height: 874 } });
+  const freshPage = await freshContext.newPage();
+  let freshNav = 0;
+  freshPage.on('framenavigated', (f) => { if (f === freshPage.mainFrame()) freshNav += 1; });
+  await freshPage.goto(url);
+  await freshPage.evaluate(async () => { await navigator.serviceWorker.ready; });
+  await freshPage.waitForTimeout(2500);
+  assert.equal(freshNav, 1, '首次安装不应触发额外刷新');
+  console.log('PASS 首次安装不额外刷新（打开不会白加载两次）');
+  await freshContext.close();
 
   assert.deepEqual(errors, [], '页面不应有未捕获异常');
   console.log('PASS 在线 / 离线缓存启动均正常，无页面异常');
