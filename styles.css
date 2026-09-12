@@ -54,7 +54,7 @@ h1, h2, p { margin-top: 0; }
 h1 { margin-bottom: 8px; font-size: clamp(29px, 7vw, 48px); letter-spacing: -.04em; }
 h2 { margin-bottom: 5px; font-size: 20px; }
 .intro { max-width: 640px; margin-bottom: 0; color: var(--muted); line-height: 1.55; }
-.badge { border: 1px solid #355579; border-radius: 999px; padding: 5px 10px; color: var(--blue); font-size: 12px; }
+.badge { border: 1px solid #355579; border-radius: 999px; padding: 5px 10px; color: var(--blue); font-size: 12px; white-space: nowrap; }
 
 .panel, .result-card {
   border: 1px solid var(--line);
