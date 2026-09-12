@@ -7,6 +7,12 @@ const DEFAULTS = {
   sides: { top: true, bottom: true, left: true, right: true },
 };
 
+// 待裁条带中近黑行的占比下限。低于此值说明黑条是夹在画面中间的暗色
+// 物体，为了它牺牲外侧内容不划算，宁可不裁交给手动微调。
+const MIN_BORDER_PURITY = 0.6;
+// 单边最多裁掉轴长的比例，作为"主体至少还要占 1/4"的兜底保护。
+const MAX_CROP_RATIO = 0.75;
+
 const state = { items: [], settings: structuredClone(DEFAULTS) };
 const $ = (id) => document.getElementById(id);
 const results = $("results");
@@ -45,6 +51,18 @@ function readSettings() {
   document.querySelectorAll(".side-toggle").forEach((input) => {
     state.settings.sides[input.dataset.side] = input.checked;
   });
+}
+
+// 参数真正变化时才重算，避免同一个值反复触发整批重分析。
+function applyChangedSettings() {
+  const previous = JSON.stringify(state.settings);
+  readSettings();
+  if (previous !== JSON.stringify(state.settings)) reanalyzeAll();
+}
+
+function settingsInput() {
+  updateControlLabels();
+  if (state.items.length) $("status").textContent = "参数已调整，松开滑块后自动应用。";
 }
 
 function resetSettings() {
@@ -121,103 +139,61 @@ function qualifies(profileLine, settings) {
   return darkEnough && luminanceEnough;
 }
 
-function findInteriorBoundary(profile, side, settings) {
-  const lineCount = profile.length;
-  const fromEdge = side === "top" || side === "left";
-  const direction = fromEdge ? -1 : 1;
-  const center = Math.floor(lineCount / 2);
-  const minimumRun = Math.max(6, Math.round(lineCount * Math.max(settings.minThickness / 100, 0.01)));
-  const maximumCrop = Math.floor(lineCount * 0.45);
-  const maximumDistance = Math.floor(lineCount * 0.5);
-
-  // Start at the likely subject area and walk toward the selected side. A
-  // real screenshot bar usually has a sharp transition from content to a
-  // long, uniform near-black run. Requiring a run avoids mistaking a single
-  // dark line or a dark object in the subject for a border.
-  let runLength = 0;
-  let runFirstIndex = null;
-  for (let offset = 0; offset <= maximumDistance; offset += 1) {
-    const index = center + offset * direction;
-    if (index < 0 || index >= lineCount) break;
-
+// 把逐行/逐列剖面切成「近黑段」与「内容段」，返回所有内容段的 [起, 止] 索引。
+// 内容段 = 连续不满足 qualifies 的行（列），与"黑段夹在哪"无关。
+function contentBands(profile, settings) {
+  const bands = [];
+  let start = null;
+  for (let index = 0; index < profile.length; index += 1) {
     if (qualifies(profile[index], settings)) {
-      if (runLength === 0) runFirstIndex = index;
-      runLength += 1;
-      if (runLength < minimumRun) continue;
-
-      // runFirstIndex is the inner edge of the run because the scan starts
-      // from the content and travels outward. Convert it to the amount to
-      // remove from the actual outside edge.
-      const boundary = fromEdge ? runFirstIndex + 1 : runFirstIndex;
-      const cropDepth = fromEdge ? boundary : lineCount - boundary;
-      if (cropDepth > maximumCrop) return 0;
-
-      const contentIndex = fromEdge ? boundary : boundary - 1;
-      if (contentIndex < 0 || contentIndex >= lineCount) return 0;
-      const borderMean = profile
-        .slice(fromEdge ? runFirstIndex - runLength + 1 : runFirstIndex,
-          fromEdge ? runFirstIndex + 1 : runFirstIndex + runLength)
-        .reduce((sum, line) => sum + line.meanMaxChannel, 0) / runLength;
-      const contentContrast = profile[contentIndex].meanMaxChannel - borderMean;
-      if (contentContrast < Math.max(12, settings.darkThreshold * 0.3)) return 0;
-      return cropDepth;
+      if (start !== null) {
+        bands.push([start, index - 1]);
+        start = null;
+      }
+    } else if (start === null) {
+      start = index;
     }
-
-    // A short dark patch inside a photo is not enough. Reset and keep
-    // scanning so a later, longer screenshot bar can still be found.
-    runLength = 0;
-    runFirstIndex = null;
   }
+  if (start !== null) bands.push([start, profile.length - 1]);
+  return bands;
+}
 
-  return 0;
+// 最长的一段内容就是主体，它的两端天然给出该轴上的两条裁剪边界。
+// 这样就不再依赖"图像中心一定落在主体内"这个假设——旧的中心向外扫描
+// 遇到"工具条 + 长条黑边把中心包住"的图时，会从中心起步、把中心误判成
+// 黑边的内侧边缘，算出接近半个画布的裁剪量后被安全上限否掉，最终一边
+// 都不裁。
+function subjectBand(profile, settings) {
+  return contentBands(profile, settings).reduce(
+    (best, band) => (best && best[1] - best[0] >= band[1] - band[0] ? best : band),
+    null,
+  );
+}
+
+// 待裁条带里近黑行占多大比例。占比高说明这一条确实是边框（或它外侧的
+// 界面工具条）；占比低说明黑条夹在画面中间，不该为了它切掉外侧内容。
+function borderPurity(profile, settings, boundary, fromEdge) {
+  const strip = fromEdge
+    ? profile.slice(0, boundary)
+    : profile.slice(profile.length - boundary);
+  if (!strip.length) return 0;
+  return strip.filter((line) => qualifies(line, settings)).length / strip.length;
 }
 
 function detectSide(profile, side, settings) {
   const lineCount = profile.length;
-  const minDepth = Math.max(3, Math.round(lineCount * settings.minThickness / 100));
-  const maxDepth = Math.floor(lineCount * 0.45);
-  const gapAllowance = Math.max(1, Math.round(lineCount * 0.002));
   const fromEdge = side === "top" || side === "left";
+  const subject = subjectBand(profile, settings);
 
-  // First preserve the original edge-connected detection for clean bars.
-  let edgeDepth = 0;
-  let edgeBadStreak = 0;
-  for (let offset = 0; offset < maxDepth; offset += 1) {
-    const index = fromEdge ? offset : lineCount - 1 - offset;
-    if (qualifies(profile[index], settings)) {
-      edgeDepth = offset + 1;
-      edgeBadStreak = 0;
-    } else {
-      edgeBadStreak += 1;
-      if (edgeBadStreak > gapAllowance) break;
-    }
-  }
+  // 整幅近乎全黑：没有可识别的主体，不做任何裁剪。
+  if (!subject) return 0;
 
-  const interiorDepth = findInteriorBoundary(profile, side, settings);
-  if (edgeDepth < minDepth) return interiorDepth;
-
-  const insideStart = fromEdge ? edgeDepth : lineCount - edgeDepth - 1;
-  const boundaryWindow = Math.max(3, Math.round(lineCount * 0.006));
-  let contentLines = 0;
-  for (let i = 1; i <= boundaryWindow; i += 1) {
-    const index = fromEdge ? insideStart + i : insideStart - i;
-    if (index >= 0 && index < lineCount && !qualifies(profile[index], settings)) contentLines += 1;
-  }
-
-  // If the whole image is near-black, there is no identifiable border.
-  if (contentLines < Math.ceil(boundaryWindow * 0.55)) return interiorDepth;
-
-  const averageEdgeDarkness = profile.slice(
-    fromEdge ? 0 : lineCount - edgeDepth,
-    fromEdge ? edgeDepth : lineCount,
-  ).reduce((sum, line) => sum + line.meanMaxChannel, 0) / edgeDepth;
-
-  if (averageEdgeDarkness > settings.darkThreshold * 1.12) edgeDepth = 0;
-
-  // If a viewer/header sits outside the black bar, the bar is not connected
-  // to the image edge. The center-out pass catches that case and also wins
-  // when text interrupts a larger black region near the edge.
-  return Math.max(edgeDepth, interiorDepth);
+  const boundary = fromEdge ? subject[0] : lineCount - 1 - subject[1];
+  const minBorder = Math.max(3, Math.round((lineCount * settings.minThickness) / 100));
+  const maxBorder = Math.floor(lineCount * MAX_CROP_RATIO);
+  if (boundary < minBorder || boundary > maxBorder) return 0;
+  if (borderPurity(profile, settings, boundary, fromEdge) < MIN_BORDER_PURITY) return 0;
+  return boundary;
 }
 
 function analyzeImage(image) {
@@ -294,8 +270,15 @@ function renderCard(item) {
   card.className = "result-card";
   card.dataset.itemId = item.id;
   const detected = item.detected;
+  if (item.image && !item.error) {
+    // 先把手动微调后的数值过一遍裁剪钳制，再拿它渲染，界面显示的才是真正生效的量。
+    item.rendered = cropImage(item, item.values);
+    item.values = item.rendered.values;
+  }
   const values = item.values;
-  const dimensionText = item.image ? `原图 ${item.image.naturalWidth} × ${item.image.naturalHeight}px` : "无法读取图片";
+  const dimensionText = item.rendered
+    ? `原图 ${item.image.naturalWidth} × ${item.image.naturalHeight}px · 输出 ${item.rendered.canvas.width} × ${item.rendered.canvas.height}px`
+    : "无法读取图片";
   card.innerHTML = `
     <div class="result-head">
       <div>
@@ -305,6 +288,7 @@ function renderCard(item) {
       <p class="detected">${escapeHtml(detectedLabel(detected))}</p>
     </div>
     ${item.error ? `<p class="error">${escapeHtml(item.error)}</p>` : `
+      <p class="actual-crop">实际裁剪：上 ${values.top}px · 下 ${values.bottom}px · 左 ${values.left}px · 右 ${values.right}px</p>
       <div class="preview-grid">
         <div class="preview-block"><span>原图</span><canvas class="preview-canvas" width="1" height="1"></canvas></div>
         <div class="preview-block"><span>裁剪结果</span><img class="result-image" alt="裁剪结果" /></div>
@@ -329,13 +313,13 @@ function renderCard(item) {
   originalCanvas.height = item.image.naturalHeight;
   originalCanvas.getContext("2d").drawImage(item.image, 0, 0);
 
-  item.rendered = cropImage(item, values);
   const resultImage = card.querySelector(".result-image");
   resultImage.src = item.rendered.canvas.toDataURL(outputType(item));
 
   card.querySelectorAll("[data-side-input]").forEach((input) => {
     input.addEventListener("change", () => {
-      item.values[input.dataset.side] = clamp(Number(input.value) || 0, 0, 100000);
+      item.values[input.dataset.sideInput] = clamp(Number(input.value) || 0, 0, 100000);
+      renderCard(item);
     });
   });
   card.querySelector('[data-action="re-crop"]').addEventListener("click", () => {
@@ -383,6 +367,8 @@ async function loadFiles(fileList) {
       loaded.push({ id: `${Date.now()}-${index}`, file: files[index], error: error.message });
     }
   }
+  // 先把当前滑块值读进来，否则新导入的图会用上一次的旧参数分析。
+  readSettings();
   state.items = loaded.map((item) => {
     if (item.error) return item;
     const analysis = analyzeImage(item.image);
@@ -403,9 +389,14 @@ function reanalyzeAll() {
     item.values = applyPadding(analysis.detected);
   });
   renderAll();
+  if (state.items.length) {
+    $("status").textContent = `已应用当前参数：边界微调 ${state.settings.padding} px；请查看实际裁剪量和输出尺寸。`;
+  }
 }
 
 function getOutputBlob(item) {
+  // 保存前把还没提交的滑块输入应用掉，避免导出的图与界面显示不一致。
+  applyChangedSettings();
   item.rendered = cropImage(item, item.values);
   return new Promise((resolve) => {
     item.rendered.canvas.toBlob(resolve, outputType(item), outputType(item) === "image/jpeg" ? 0.96 : undefined);
@@ -504,7 +495,11 @@ async function shareAllItems() {
   }
 }
 
-Object.values(controls).forEach((control) => control.addEventListener("input", updateControlLabels));
+Object.values(controls).forEach((control) => {
+  control.addEventListener("input", settingsInput);
+  control.addEventListener("change", applyChangedSettings);
+});
+document.querySelectorAll(".side-toggle").forEach((control) => control.addEventListener("change", applyChangedSettings));
 $("fileInput").addEventListener("change", (event) => loadFiles(event.target.files));
 $("reanalyze").addEventListener("click", reanalyzeAll);
 $("resetSettings").addEventListener("click", resetSettings);
