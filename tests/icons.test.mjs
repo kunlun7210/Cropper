@@ -127,12 +127,12 @@ test('cache includes all declared icons and only removes this project old caches
   const handlers = {}, deleted = [];
   vm.runInNewContext(worker, {
     self: { addEventListener: (name, fn) => handlers[name] = fn, clients: { claim() {} } },
-    caches: { keys: async () => ['screenshot-trimmer-v13', 'screenshot-trimmer-v14', 'screenshot-trimmer-v15', 'subflow-v9'], delete: async key => deleted.push(key) }
+    caches: { keys: async () => ['screenshot-trimmer-v14', 'screenshot-trimmer-v15', 'screenshot-trimmer-v16', 'subflow-v9'], delete: async key => deleted.push(key) }
   });
   let finished;
   handlers.activate({ waitUntil(promise) { finished = promise; } });
   await finished;
-  assert.deepEqual(deleted, ['screenshot-trimmer-v13', 'screenshot-trimmer-v14']);
+  assert.deepEqual(deleted, ['screenshot-trimmer-v14', 'screenshot-trimmer-v15']);
   for (const file of [...sizes.map(iconPath), 'icons/icon-cai-v1.svg', 'icons/favicon-cai-v1.ico']) assert.ok(worker.includes(`./${file}`));
 });
 
