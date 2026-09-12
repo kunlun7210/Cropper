@@ -517,5 +517,18 @@ $("downloadAll").addEventListener("click", () => downloadAllItems());
 updateControlLabels();
 renderEmpty();
 if ("serviceWorker" in navigator && window.isSecureContext) {
-  navigator.serviceWorker.register("sw.js").catch(() => {});
+  // 新版 Service Worker 一旦接管，自动刷新一次，避免继续停留在旧缓存里的界面。
+  let reloadedForUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloadedForUpdate) return;
+    reloadedForUpdate = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker.register("sw.js").then((registration) => {
+    // 打开页面时主动查一次更新；从后台切回来时再查一次，省得一直跑旧版本。
+    registration.update().catch(() => {});
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) registration.update().catch(() => {});
+    });
+  }).catch(() => {});
 }

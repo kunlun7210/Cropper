@@ -23,7 +23,8 @@ const FIXTURES = {
   thin: { w: 200, h: 160 },
 };
 
-let browser, server;
+let browser, server, page, context, errors;
+let swVariant = null;
 
 async function main() {
   server = http.createServer(async (req, res) => {
@@ -31,6 +32,13 @@ async function main() {
     const file = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
     try {
+      // 用于测试"新版本自动刷新"：把 sw.js 内容换掉即可让浏览器认为有新版本
+      if (pathname === '/sw.js' && swVariant) {
+        const src = await fs.readFile(file, 'utf8');
+        res.setHeader('Content-Type', 'text/javascript');
+        res.end(src.replace(/screenshot-trimmer-v\d+/g, swVariant));
+        return;
+      }
       res.setHeader('Content-Type', types[path.extname(file)] || 'application/octet-stream');
       res.end(await fs.readFile(file));
     } catch { res.writeHead(404).end(); }
@@ -184,6 +192,22 @@ async function main() {
   await page.reload();
   await page.locator('.hero h1').waitFor();
   await context.setOffline(false);
+
+  // 版本自动更新：换掉 sw.js 内容后触发 update()，页面应自动刷新，用户不必手动清缓存
+  let navigations = 0;
+  const onNav = (f) => { if (f === page.mainFrame()) navigations += 1; };
+  page.on('framenavigated', onNav);
+  await page.evaluate(() => { window.__stillOldBuild = true; });
+  swVariant = 'screenshot-trimmer-v15-autotest';
+  await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration();
+    await registration.update();
+  });
+  await page.waitForFunction(() => window.__stillOldBuild === undefined, null, { timeout: 20000 });
+  page.off('framenavigated', onNav);
+  assert.ok(navigations >= 1, '应至少发生一次自动刷新');
+  console.log('PASS 检测到新版本后页面自动刷新（无需用户手动清缓存）');
+
   assert.deepEqual(errors, [], '页面不应有未捕获异常');
   console.log('PASS 在线 / 离线缓存启动均正常，无页面异常');
 
