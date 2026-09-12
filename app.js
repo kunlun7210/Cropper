@@ -7,9 +7,11 @@ const DEFAULTS = {
   sides: { top: true, bottom: true, left: true, right: true },
 };
 
-// 待裁条带中近黑行的占比下限。低于此值说明黑条是夹在画面中间的暗色
-// 物体，为了它牺牲外侧内容不划算，宁可不裁交给手动微调。
-const MIN_BORDER_PURITY = 0.6;
+// 待裁条带中"近黑行"的占比下限（严格大于才算边框）。用"多数"而不是某个
+// 手感阈值：条带里黑的部分多于不黑的部分，才说明这条确实是边框，或被界面
+// 工具条包住的边框；相等或偏少时按不裁处理（保守），避免为了夹在画面中间
+// 的暗色物体牺牲外侧真实内容。
+const MIN_BORDER_PURITY = 0.5;
 // 单边最多裁掉轴长的比例，作为"主体至少还要占 1/4"的兜底保护。
 const MAX_CROP_RATIO = 0.75;
 
@@ -158,20 +160,25 @@ function contentBands(profile, settings) {
   return bands;
 }
 
-// 最长的一段内容就是主体，它的两端天然给出该轴上的两条裁剪边界。
-// 这样就不再依赖"图像中心一定落在主体内"这个假设——旧的中心向外扫描
-// 遇到"工具条 + 长条黑边把中心包住"的图时，会从中心起步、把中心误判成
-// 黑边的内侧边缘，算出接近半个画布的裁剪量后被安全上限否掉，最终一边
-// 都不裁。
+// 主体 = 包含图像几何中心的那一段连续内容。四条边的裁剪量就是从这个
+// 中心段向上下左右量出去：凡是中心段之外没有连续内容的区域，一律裁掉。
+//
+// 如果中心本身就落在黑区里（例如"界面工具条 + 长条黑边"把中心包住的
+// 截图，照片只占画面下半部分），说明「中心必在主体内」这个前提不成立，
+// 此时退化为取最长的一段连续内容，仍然能得到正确的主体。旧版从中心向
+// 外扫描时没有这个退化分支：起点已在黑区内，代码把中心误判成黑边的内侧
+// 边缘，算出接近半个画布的裁剪量后被安全上限否掉，结果一边都不裁。
 function subjectBand(profile, settings) {
-  return contentBands(profile, settings).reduce(
-    (best, band) => (best && best[1] - best[0] >= band[1] - band[0] ? best : band),
-    null,
-  );
+  const bands = contentBands(profile, settings);
+  if (!bands.length) return null;
+  const center = Math.floor(profile.length / 2);
+  const containing = bands.find((band) => center >= band[0] && center <= band[1]);
+  if (containing) return containing;
+  return bands.reduce((best, band) => (band[1] - band[0] > best[1] - best[0] ? band : best));
 }
 
-// 待裁条带里近黑行占多大比例。占比高说明这一条确实是边框（或它外侧的
-// 界面工具条）；占比低说明黑条夹在画面中间，不该为了它切掉外侧内容。
+// 待裁条带里近黑行占多大比例。占比过半说明这一条确实是边框（或它外侧的
+// 界面工具条）；占比不过半说明黑条夹在画面中间，不该为了它切掉外侧内容。
 function borderPurity(profile, settings, boundary, fromEdge) {
   const strip = fromEdge
     ? profile.slice(0, boundary)
@@ -192,7 +199,7 @@ function detectSide(profile, side, settings) {
   const minBorder = Math.max(3, Math.round((lineCount * settings.minThickness) / 100));
   const maxBorder = Math.floor(lineCount * MAX_CROP_RATIO);
   if (boundary < minBorder || boundary > maxBorder) return 0;
-  if (borderPurity(profile, settings, boundary, fromEdge) < MIN_BORDER_PURITY) return 0;
+  if (borderPurity(profile, settings, boundary, fromEdge) <= MIN_BORDER_PURITY) return 0;
   return boundary;
 }
 
