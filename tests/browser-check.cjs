@@ -17,6 +17,7 @@ const FIXTURES = {
   border: { w: 200, h: 160 },
   letterbox: { w: 200, h: 330 },
   stripe: { w: 200, h: 160 },
+  smalldark: { w: 200, h: 500 },
   white: { w: 200, h: 160 },
   black: { w: 200, h: 160 },
   thin: { w: 200, h: 160 },
@@ -50,7 +51,7 @@ async function main() {
   const fixtures = await page.evaluate((names) => {
     const out = {};
     for (const name of names) {
-      const { w, h } = { border: { w: 200, h: 160 }, letterbox: { w: 200, h: 330 }, stripe: { w: 200, h: 160 }, white: { w: 200, h: 160 }, black: { w: 200, h: 160 }, thin: { w: 200, h: 160 } }[name];
+      const { w, h } = { border: { w: 200, h: 160 }, letterbox: { w: 200, h: 330 }, stripe: { w: 200, h: 160 }, smalldark: { w: 200, h: 500 }, white: { w: 200, h: 160 }, black: { w: 200, h: 160 }, thin: { w: 200, h: 160 } }[name];
       const c = document.createElement('canvas');
       c.width = w; c.height = h;
       const g = c.getContext('2d');
@@ -65,6 +66,7 @@ async function main() {
         g.fillStyle = '#dfe7ef'; g.fillRect(0, 180, w, 150);
       }
       if (name === 'stripe') { g.fillStyle = 'black'; g.fillRect(0, 20, w, 20); }
+      if (name === 'smalldark') { g.fillStyle = 'black'; g.fillRect(0, 100, w, 20); }
       if (name === 'black') { g.fillStyle = 'black'; g.fillRect(0, 0, w, h); }
       if (name === 'thin') { g.fillStyle = 'black'; g.fillRect(0, 0, w, 1); }
       out[name] = c.toDataURL().split(',')[1];
@@ -147,13 +149,16 @@ async function main() {
   await setPadding(0);
   console.log('PASS letterbox（工具条+黑边包住中心）→ 上裁 180px，输出 200×150');
 
-  // --- 小面积内部黑条、无黑边、全黑、过细黑线都必须原样保留 ---
-  for (const name of ['stripe', 'white', 'black', 'thin']) {
+  // --- 中心段之外没有连续内容的区域一律裁掉；小暗块受低位阈值保护 ---
+  await upload('stripe');
+  await expectOutput(200, 120);
+  assert.match(await actualCrop(), /上 40px · 下 0px · 左 0px · 右 0px/, 'stripe 应裁到中心段起点');
+  for (const name of ['white', 'black', 'thin', 'smalldark']) {
     await upload(name);
-    await expectOutput(200, 160);
+    await expectOutput(name === 'smalldark' ? 200 : 200, name === 'smalldark' ? 500 : 160);
     assert.match(await actualCrop(), /上 0px · 下 0px · 左 0px · 右 0px/, `${name} 不应被裁剪`);
   }
-  console.log('PASS 内部黑条 / 无黑边 / 全黑 / 过细黑线 均保持原样');
+  console.log('PASS 无黑边 / 全黑 / 过细黑线 / 小暗块 均保持原样；内部黑条按中心段裁掉');
 
   // --- 方向开关 ---
   await page.locator('.side-toggle[data-side="left"]').uncheck();
