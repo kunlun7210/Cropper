@@ -75,39 +75,32 @@ node --test tests/icons.test.mjs
 
 ## 回归验证
 
+静态资源与逻辑单元测试：
+
 ```sh
-node --test tests/icons.test.mjs
+npm test
 ```
 
-检查静态资源引用、缓存清理规则、边界微调语义与图标像素。
+检查静态资源引用、缓存清理规则、边界微调语义与图标像素，不需要任何浏览器。
 
-安装 Playwright（本机已装 Google Chrome 即可，无需下载浏览器内核）：
-
-```sh
-cd /Users/kunlun/.workbuddy/binaries/node/workspace
-PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install playwright
-```
-
-> 若报 `EACCES ... Your cache folder contains root-owned files`，是 `~/.npm` 被 root 写过。**不要**为此执行 `sudo chown -R`，改用独立缓存目录即可：
-> `npm install playwright --cache /tmp/npm-cache-kunlun`
+浏览器端到端回归：需要 Playwright。本机已装 Google Chrome 即可，无需下载浏览器内核：
 
 ```sh
-cd <项目根目录>
-NODE_PATH=/Users/kunlun/.workbuddy/binaries/node/workspace/node_modules \
-  /Users/kunlun/.workbuddy/binaries/node/versions/22.22.2-3/bin/node tests/browser-check.cjs
+PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install
+npm run test:browser
 ```
 
 用独立的无头 Chrome 与本地回环 HTTP 服务跑真实页面：覆盖各合成图的裁剪量、滑块自动重算、四边手动微调、方向开关、导出 PNG 的实际尺寸、响应式布局与离线缓存启动，不读取个人浏览器资料。
 
-真实样本回归（需要一批实拍截图）：
+真实样本回归：需要一批自己拍的截图。**这类素材不入仓库**，用环境变量指向所在目录：
 
 ```sh
-cd <项目根目录>
-CROPPER_FIXTURES="$HOME/Downloads/裁剪黑边测试图" \
-NODE_PATH=/Users/kunlun/.workbuddy/binaries/node/workspace/node_modules \
-  /Users/kunlun/.workbuddy/binaries/node/versions/22.22.2-3/bin/node tests/chrome-check.cjs
+CROPPER_FIXTURES="$HOME/Pictures/测试截图" npm run test:samples
 ```
 
-把测试图目录下所有 PNG 逐一交给页面里的 `analyzeImage`，打印每个方向的裁剪量，并断言关键样本的数值、以及关掉"界面栏"开关后能回落到改造前的行为。
+它把该目录下所有 PNG 逐一交给页面里的 `analyzeImage`，打印每个方向的裁剪量，并断言关键样本的数值、以及关掉“界面栏”开关后能回落到改造前的行为。
 
-> 注意：算法的 Python 镜像（连同合成用例）是开发期工具，**不入本仓库**，放在工作区的 `分析/` 目录下（`cropper_v3.py` 镜像 + `test_synthetic.py` 用例 + `cropper_mirror.py` 改造前基线）。它用 PIL 缩放，浏览器用 canvas 缩放，两者在个别图上会相差 3px（约一个采样行）。**以浏览器结果为准**，镜像只用于快速试参数。
+> **安装依赖报 `EACCES ... Your cache folder contains root-owned files`** 时，是 npm 缓存目录被 root 写过。**不要**为此执行 `sudo chown -R`，改用独立缓存目录即可：
+> `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --cache /tmp/npm-cache`
+
+> 算法的 Python 镜像与合成用例是开发期工具，**不在本仓库内**。它用 PIL 缩放，浏览器用 canvas 缩放，两者在个别图上会相差 3px（约一个采样行）。**以浏览器结果为准**，镜像只用于快速试参数。

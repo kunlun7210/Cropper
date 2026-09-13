@@ -1,0 +1,8 @@
+# 依赖安装产物（package-lock.json 按惯例应当提交，故不忽略）
+node_modules/
+
+# macOS
+.DS_Store
+
+# 日志与临时文件
+*.log

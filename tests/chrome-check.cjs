@@ -1,11 +1,7 @@
-// 真实样本回归：node tests/chrome-check.cjs
-// 需要在环境变量 CROPPER_FIXTURES 指向测试图目录。
-//
-// 用真实浏览器（系统 Chrome）把每张图交给页面里的 analyzeImage 跑一遍，
-// 输出每个方向的检测裁剪量。用途有两个：
-//   1. 验证 app.js 的界面栏识别与 Python 镜像（分析/cropper_v3.py）结果一致；
-//      浏览器 canvas 与 PIL 的缩放滤波不同，必须以真实环境为准。
-//   2. 验证关掉「界面栏」开关后，结果回落到改造前的行为。
+// 真实样本回归：npm run test:samples（等价于 node tests/chrome-check.cjs）
+// 需要把环境变量 CROPPER_FIXTURES 指向一批自己拍的截图目录，例如：
+//   CROPPER_FIXTURES="$HOME/Pictures/测试截图" npm run test:samples
+// 测试素材属于个人数据，刻意不放进仓库，也不设默认路径。
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const fss = require('node:fs');
@@ -14,12 +10,22 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
-const fixtureDir = process.env.CROPPER_FIXTURES || '/Users/kunlun/Downloads/裁剪黑边测试图';
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 
-// Python 镜像（分析/cropper_v3.py）在同一批图上的结果，用于交叉校验。
+const fixtureDir = process.env.CROPPER_FIXTURES;
+if (!fixtureDir) {
+  console.error('缺少环境变量 CROPPER_FIXTURES。请指向一批实拍截图所在目录，例如：');
+  console.error('  CROPPER_FIXTURES="$HOME/Pictures/测试截图" npm run test:samples');
+  process.exit(1);
+}
+if (!fss.existsSync(fixtureDir)) {
+  console.error(`CROPPER_FIXTURES 指向的目录不存在：${fixtureDir}`);
+  process.exit(1);
+}
+
+// 期望值由开发期的 Python 镜像产出并人工核对过，这里作为回归基线固定下来。
 // 注意：镜像用 PIL 缩放、浏览器用 canvas 缩放，两张图（0764/0769）的边界会
-// 相差 3px（约一个 profile 行）。以浏览器为准，镜像仅作趋势参照。
+// 相差 3px（约一个 profile 行）。以浏览器为准。
 const EXPECTED_ON = {
   'IMG_0761.PNG': { top: 971, bottom: 0, left: 0, right: 0 },   // 不受影响：纯黑边框
   'IMG_0770.PNG': { top: 973, bottom: 973, left: 0, right: 0 },
