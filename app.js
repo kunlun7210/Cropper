@@ -4,6 +4,7 @@ const DEFAULTS = {
   coverage: 92,
   minThickness: 1,
   padding: 0,
+  detectChrome: true,
   sides: { top: true, bottom: true, left: true, right: true },
 };
 
@@ -16,6 +17,29 @@ const MIN_BORDER_PURITY = 0.25;
 // 单边最多裁掉轴长的比例，作为"主体至少还要占 1/4"的兜底保护。
 const MAX_CROP_RATIO = 0.75;
 
+// ---------------------------------------------------------------------------
+// 深色界面栏（UI chrome）识别参数
+//
+// 背景：在相册/社交 App 里看图时截图，画面顶部会带上应用自身的深色界面——
+// 状态栏、"‹ 返回 / 页码 / 投诉"导航栏，以及照片上下的黑色留白。这类区域
+// 的颜色是纯黑 (0,0,0) 或去饱和深板岩 (40,45,55)，最大通道 55。
+// 默认黑色阈值 42 看不见它，于是整块界面被当成"内容"保留下来。
+//
+// 判据用"行中位数"而非"行均值"：界面栏是"暗底 + 少量白字"，白字会把
+// 行均值抬到 73~78 并在阈值附近摆动，而行中位数稳定在 55~66；照片行的
+// 中位数就是照片自身颜色，无法靠它蒙混。
+// ---------------------------------------------------------------------------
+const CHROME_MEDIAN = 72;        // 行主色（中位数）上限，超过即认为是照片内容
+const FLAT_TOLERANCE = 12;       // 与行中位数相差多少以内算"同色"
+const FLAT_FRACTION = 0.78;      // 同色像素占比下限：界面栏是纯色块，照片有纹理
+const BRIGHT_LEVEL = 150;        // "亮像素"门槛，用于识别文字笔画
+const BRIGHT_FRACTION = 0.10;    // 亮像素占比上限：界面栏上只有少量文字
+const CHROME_MAX_GAP = 8;        // 游程内可容忍的连续间断行数（抗锯齿/渐变）
+const CHROME_MIN_SLAB = 20;      // 界面栏游程长度下限（profile 行）
+const CHROME_DENSITY = 0.80;     // 游程内"界面栏行"占比下限
+const CHROME_CONTRAST_MIN = 100; // 界面栏之后首行的亮度下限
+const CHROME_CONTRAST_RATIO = 1.6; // 或为界面栏亮度中位数的若干倍
+
 const state = { items: [], settings: structuredClone(DEFAULTS) };
 const $ = (id) => document.getElementById(id);
 const results = $("results");
@@ -26,6 +50,7 @@ const controls = {
   coverage: $("coverage"),
   minThickness: $("minThickness"),
   padding: $("padding"),
+  detectChrome: $("detectChrome"),
 };
 
 function clamp(value, min, max) {
@@ -51,6 +76,7 @@ function readSettings() {
   state.settings.coverage = Number(controls.coverage.value);
   state.settings.minThickness = Number(controls.minThickness.value);
   state.settings.padding = Number(controls.padding.value);
+  state.settings.detectChrome = controls.detectChrome.checked;
   document.querySelectorAll(".side-toggle").forEach((input) => {
     state.settings.sides[input.dataset.side] = input.checked;
   });
@@ -73,6 +99,7 @@ function resetSettings() {
   controls.coverage.value = DEFAULTS.coverage;
   controls.minThickness.value = DEFAULTS.minThickness;
   controls.padding.value = DEFAULTS.padding;
+  controls.detectChrome.checked = DEFAULTS.detectChrome;
   document.querySelectorAll(".side-toggle").forEach((input) => {
     input.checked = DEFAULTS.sides[input.dataset.side];
   });
@@ -81,8 +108,45 @@ function resetSettings() {
   reanalyzeAll();
 }
 
-function luma(r, g, b) {
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+// 把一行（或一列）抽样点汇总成判定所需的特征。
+//   darkRatio        近黑像素占比            —— 严格近黑判据用
+//   meanMaxChannel   最大通道均值            —— 严格近黑判据用
+//   medianMaxChannel 最大通道中位数          —— 界面栏判据用（抗白字干扰）
+//   flatFraction     落在中位数 ±12 内的占比  —— 界面栏判据用（纯色块 → 高）
+//   brightFraction   亮像素占比              —— 界面栏判据用（只有少量文字）
+//
+// 实现上用 256 桶直方图而不是对抽样点排序：
+//   1. 最大通道的取值范围天生是 0~255，直方图是精确的，不是近似；
+//   2. 中位数按"累计计数达到 count/2+1 的最小取值"取，与 sorted[floor(count/2)]
+//      完全等价；±12 窗口占比与亮像素占比同样是窗口内计数；
+//   3. 单行只需一次遍历 + 一次 256 步扫描，比排序快一个量级，
+//      大规模图片（相册原图）在 iPhone 上也不会卡顿。
+const histogram = new Uint16Array(256);
+
+function profileLine(count, darkCount, total) {
+  let cumulative = 0;
+  const target = Math.floor(count / 2) + 1;
+  let median = 0;
+  for (let value = 0; value < 256; value += 1) {
+    cumulative += histogram[value];
+    if (cumulative >= target) {
+      median = value;
+      break;
+    }
+  }
+  const low = Math.max(0, median - FLAT_TOLERANCE);
+  const high = Math.min(255, median + FLAT_TOLERANCE);
+  let flatCount = 0;
+  for (let value = low; value <= high; value += 1) flatCount += histogram[value];
+  let brightCount = 0;
+  for (let value = BRIGHT_LEVEL; value < 256; value += 1) brightCount += histogram[value];
+  return {
+    darkRatio: darkCount / count,
+    meanMaxChannel: total / count,
+    medianMaxChannel: median,
+    flatFraction: flatCount / count,
+    brightFraction: brightCount / count,
+  };
 }
 
 function createProfile(image, settings, maxDimension = 1000) {
@@ -100,55 +164,124 @@ function createProfile(image, settings, maxDimension = 1000) {
   const columns = [];
 
   for (let y = 0; y < height; y += 1) {
+    histogram.fill(0);
     let darkCount = 0;
-    let count = 0;
     let total = 0;
-    let maxTotal = 0;
+    let count = 0;
     for (let x = 0; x < width; x += stride) {
       const index = (y * width + x) * 4;
       const maxChannel = Math.max(pixels[index], pixels[index + 1], pixels[index + 2]);
       if (maxChannel <= settings.darkThreshold) darkCount += 1;
-      maxTotal += maxChannel;
-      total += luma(pixels[index], pixels[index + 1], pixels[index + 2]);
+      histogram[maxChannel] += 1;
+      total += maxChannel;
       count += 1;
     }
-    rows.push({ darkRatio: darkCount / count, meanMaxChannel: maxTotal / count, meanLuma: total / count });
+    rows.push(profileLine(count, darkCount, total));
   }
 
   for (let x = 0; x < width; x += 1) {
+    histogram.fill(0);
     let darkCount = 0;
-    let count = 0;
     let total = 0;
-    let maxTotal = 0;
+    let count = 0;
     for (let y = 0; y < height; y += stride) {
       const index = (y * width + x) * 4;
       const maxChannel = Math.max(pixels[index], pixels[index + 1], pixels[index + 2]);
       if (maxChannel <= settings.darkThreshold) darkCount += 1;
-      maxTotal += maxChannel;
-      total += luma(pixels[index], pixels[index + 1], pixels[index + 2]);
+      histogram[maxChannel] += 1;
+      total += maxChannel;
       count += 1;
     }
-    columns.push({ darkRatio: darkCount / count, meanMaxChannel: maxTotal / count, meanLuma: total / count });
+    columns.push(profileLine(count, darkCount, total));
   }
 
   return { width, height, rows, columns };
 }
 
-function qualifies(profileLine, settings) {
+// v1 判据：严格近黑。保留原样，保证纯黑边框的既有行为完全不变。
+function nearBlack(line, settings) {
   // darkRatio prevents a single black patch from being treated as a full-width bar.
   // meanMaxChannel keeps a noisy dark-gray line from passing only on pixel count.
-  const darkEnough = profileLine.darkRatio >= settings.coverage / 100;
-  const luminanceEnough = profileLine.meanMaxChannel <= settings.darkThreshold * 1.18;
+  const darkEnough = line.darkRatio >= settings.coverage / 100;
+  const luminanceEnough = line.meanMaxChannel <= settings.darkThreshold * 1.18;
   return darkEnough && luminanceEnough;
 }
 
-// 把逐行/逐列剖面切成「近黑段」与「内容段」，返回所有内容段的 [起, 止] 索引。
-// 内容段 = 连续不满足 qualifies 的行（列），与"黑段夹在哪"无关。
-function contentBands(profile, settings) {
+// 界面栏单行判据：平坦深色。参数含义见文件顶部说明。
+function chromeLine(line) {
+  return line.medianMaxChannel <= CHROME_MEDIAN
+    && line.flatFraction >= FLAT_FRACTION
+    && line.brightFraction <= BRIGHT_FRACTION;
+}
+
+// 从边缘沿 order 方向扫出"界面栏游程"，返回应从该边裁掉的行数。
+//
+// 只承认从图像边缘起连续的界面栏：这样即使照片中部出现一条平坦暗带，
+// 也不会被误判而把画布切碎。游程内允许 CHROME_MAX_GAP 行的间断（抗锯齿
+// 过渡行、渐变），连续间断超过该值即判定已经进入照片内容。游程末端回退
+// 到"最后一个界面栏行"之后，避免把照片内容一并吞掉。
+function edgeSlab(profile, order, settings) {
+  let lastChrome = -1;
+  let gap = 0;
+
+  for (let position = 0; position < order.length; position += 1) {
+    const line = profile[order[position]];
+    if (chromeLine(line)) {
+      lastChrome = position;
+      gap = 0;
+    } else if (nearBlack(line, settings)) {
+      // 纯黑留白本身也要裁掉，但它不构成"界面栏"证据。
+      gap = 0;
+    } else {
+      gap += 1;
+      if (gap > CHROME_MAX_GAP) break;
+    }
+  }
+
+  if (lastChrome < 0) return 0;
+  const length = lastChrome + 1;
+  if (length < CHROME_MIN_SLAB || length >= profile.length) return 0;
+
+  let chromeCount = 0;
+  const runMeans = [];
+  for (let i = 0; i < length; i += 1) {
+    const line = profile[order[i]];
+    if (chromeLine(line)) chromeCount += 1;
+    runMeans.push(line.meanMaxChannel);
+  }
+  if (chromeCount / length < CHROME_DENSITY) return 0;
+
+  // 对比度护栏：界面栏之后必须明显更亮，否则说明这只是照片自身的暗部，
+  // 或者是"暗色照片 + 暗色背景"这种无法靠像素分辨的情形，保守放弃。
+  runMeans.sort((a, b) => a - b);
+  const runMedian = runMeans[Math.floor(runMeans.length / 2)];
+  const needed = Math.max(CHROME_CONTRAST_MIN, runMedian * CHROME_CONTRAST_RATIO);
+  if (profile[order[length]].meanMaxChannel < needed) return 0;
+
+  return length;
+}
+
+// 把逐行/逐列剖面归约为「该行/列是否属于应从边缘裁掉的条带」。
+// v1 的严格近黑与新增的贴边界面栏在此合并，后续机制（内容段、中心锚定
+// 主体、纯度保护、上限保护）全部原样复用。
+function borderMask(profile, settings) {
+  const mask = profile.map((line) => nearBlack(line, settings));
+  if (!settings.detectChrome || profile.length < CHROME_MIN_SLAB + 2) return mask;
+
+  const order = profile.map((_, index) => index);
+  const leading = edgeSlab(profile, order, settings);
+  const trailing = edgeSlab(profile, order.slice().reverse(), settings);
+  for (let i = 0; i < leading; i += 1) mask[i] = true;
+  for (let i = 0; i < trailing; i += 1) mask[profile.length - 1 - i] = true;
+  return mask;
+}
+
+// 把逐行/逐列剖面切成「待裁条带」与「内容段」，返回所有内容段的 [起, 止] 索引。
+function contentBands(mask) {
   const bands = [];
   let start = null;
-  for (let index = 0; index < profile.length; index += 1) {
-    if (qualifies(profile[index], settings)) {
+  for (let index = 0; index < mask.length; index += 1) {
+    if (mask[index]) {
       if (start !== null) {
         bands.push([start, index - 1]);
         start = null;
@@ -157,7 +290,7 @@ function contentBands(profile, settings) {
       start = index;
     }
   }
-  if (start !== null) bands.push([start, profile.length - 1]);
+  if (start !== null) bands.push([start, mask.length - 1]);
   return bands;
 }
 
@@ -169,29 +302,29 @@ function contentBands(profile, settings) {
 // 此时退化为取最长的一段连续内容，仍然能得到正确的主体。旧版从中心向
 // 外扫描时没有这个退化分支：起点已在黑区内，代码把中心误判成黑边的内侧
 // 边缘，算出接近半个画布的裁剪量后被安全上限否掉，结果一边都不裁。
-function subjectBand(profile, settings) {
-  const bands = contentBands(profile, settings);
+function subjectBand(mask) {
+  const bands = contentBands(mask);
   if (!bands.length) return null;
-  const center = Math.floor(profile.length / 2);
+  const center = Math.floor(mask.length / 2);
   const containing = bands.find((band) => center >= band[0] && center <= band[1]);
   if (containing) return containing;
   return bands.reduce((best, band) => (band[1] - band[0] > best[1] - best[0] ? band : best));
 }
 
-// 待裁条带里近黑行占多大比例。占比过半说明这一条确实是边框（或它外侧的
-// 界面工具条）；占比不过半说明黑条夹在画面中间，不该为了它切掉外侧内容。
-function borderPurity(profile, settings, boundary, fromEdge) {
+// 待裁条带里"属于边框"的行占多大比例。占比过低说明黑条夹在画面中间，
+// 不该为了它切掉外侧内容，此时保留原样交给手动微调。
+function borderPurity(mask, boundary, fromEdge) {
   const strip = fromEdge
-    ? profile.slice(0, boundary)
-    : profile.slice(profile.length - boundary);
+    ? mask.slice(0, boundary)
+    : mask.slice(mask.length - boundary);
   if (!strip.length) return 0;
-  return strip.filter((line) => qualifies(line, settings)).length / strip.length;
+  return strip.filter(Boolean).length / strip.length;
 }
 
-function detectSide(profile, side, settings) {
-  const lineCount = profile.length;
+function detectSide(mask, side, settings) {
+  const lineCount = mask.length;
   const fromEdge = side === "top" || side === "left";
-  const subject = subjectBand(profile, settings);
+  const subject = subjectBand(mask);
 
   // 整幅近乎全黑：没有可识别的主体，不做任何裁剪。
   if (!subject) return 0;
@@ -200,17 +333,19 @@ function detectSide(profile, side, settings) {
   const minBorder = Math.max(3, Math.round((lineCount * settings.minThickness) / 100));
   const maxBorder = Math.floor(lineCount * MAX_CROP_RATIO);
   if (boundary < minBorder || boundary > maxBorder) return 0;
-  if (borderPurity(profile, settings, boundary, fromEdge) <= MIN_BORDER_PURITY) return 0;
+  if (borderPurity(mask, boundary, fromEdge) <= MIN_BORDER_PURITY) return 0;
   return boundary;
 }
 
 function analyzeImage(image) {
   const profile = createProfile(image, state.settings);
+  const rowMask = borderMask(profile.rows, state.settings);
+  const columnMask = borderMask(profile.columns, state.settings);
+  const maskBySide = { top: rowMask, bottom: rowMask, left: columnMask, right: columnMask };
   const detected = { top: 0, bottom: 0, left: 0, right: 0 };
-  const profileBySide = { top: profile.rows, bottom: profile.rows, left: profile.columns, right: profile.columns };
   for (const side of Object.keys(detected)) {
     if (!state.settings.sides[side]) continue;
-    const depth = detectSide(profileBySide[side], side, state.settings);
+    const depth = detectSide(maskBySide[side], side, state.settings);
     detected[side] = side === "top" || side === "bottom"
       ? Math.round(depth / profile.height * image.naturalHeight)
       : Math.round(depth / profile.width * image.naturalWidth);
