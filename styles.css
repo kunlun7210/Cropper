@@ -136,9 +136,28 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
 .preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px 18px; }
 .preview-block { min-width: 0; }
 .preview-block > span { display: block; margin-bottom: 7px; color: var(--muted); font-size: 12px; }
-.preview-canvas, .result-image { display: block; width: 100%; max-height: 560px; object-fit: contain; border-radius: 12px; background: #05070b; }
+/* 预览里的图片必须「贴合自身内容」，不能撑满格子宽度。
+   原因：原写法 width:100% + max-height + object-fit:contain，当结果是竖版时
+   max-height 会生效，元素框被拉成比图片更宽的比例，左右各空出一条被
+   background: #05070b 填满的区域。那个颜色与真正的黑边(#000000)对比只有
+   1.04:1，肉眼分不清「这是照片里的黑边」还是「这是容器底」。
+   实测 22 张里 6 张竖版结果受影响（IMG_0776 左右各空 68px）。
+   改成 width:auto 后元素框 = 图片本身，留白从根上消失；再加 1px 描边把
+   图片边界显性化。横版/正方结果元素框尺寸完全不变，不受影响。 */
+.preview-canvas, .result-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 560px;
+  margin: 0 auto;
+  object-fit: contain;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.26);
+}
 .preview-canvas { height: auto; }
-.result-image { min-height: 120px; }
+/* 不再设 min-height：宽度自适应后元素必有真实高度，而没有 min-height 才能
+   保证极宽的全景图不会被纵向拉伸变形。 */
 
 .fine-tune { padding: 0 18px 15px; }
 .fine-tune summary { cursor: pointer; color: var(--blue); font-size: 13px; }
