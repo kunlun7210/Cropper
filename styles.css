@@ -27,8 +27,19 @@ button { cursor: pointer; }
 .app-shell {
   width: min(100%, 1008px);
   margin: 0 auto;
+  /* 顶部留白 = 安全区 + 20px 呼吸空间。
+     不能只写 max(28px, env(safe-area-inset-top))：env() 并不总是可靠 ——
+     Safari 未折叠地址栏时它常返回 0，只有独立窗口模式才给出状态栏高度，
+     于是实际只剩兜底值，刘海屏上最上面那行会贴着状态栏/灵动岛。
+     下面两条声明：第一条是纯 px 回退（万一某版 Safari 解析不了嵌套的
+     max()/calc()，整条声明会被丢弃、留白归零，比原来更糟），第二条才是正式值。 */
   padding:
-    max(28px, env(safe-area-inset-top))
+    48px
+    max(14px, env(safe-area-inset-right))
+    max(36px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
+  padding:
+    max(48px, calc(env(safe-area-inset-top) + 20px))
     max(14px, env(safe-area-inset-right))
     max(36px, env(safe-area-inset-bottom))
     max(14px, env(safe-area-inset-left));
@@ -80,13 +91,14 @@ h2 { margin-bottom: 5px; font-size: 20px; }
 .file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .file-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #236cb7; font-size: 27px; }
 .file-picker strong, .file-picker small { display: block; }
-.file-picker small, .setting small, .settings-summary p { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.file-picker small, .setting small { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.4; }
 .status { margin: 10px 4px 1px; color: var(--muted); font-size: 13px; }
 
-.settings-summary { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; border-radius: 12px; cursor: pointer; list-style: none; }
+.settings-summary { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-radius: 12px; cursor: pointer; list-style: none; }
 .settings-summary::-webkit-details-marker { display: none; }
 .settings-summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 5px; }
-.settings-summary p { margin-bottom: 0; }
+/* 折叠态现在只有标题，标题自带的下外边距会让这一栏偏高，去掉 */
+.settings-summary h2 { margin-bottom: 0; }
 .settings-toggle { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-width: 104px; justify-content: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--blue); font-size: 13px; font-weight: 700; }
 .settings-toggle-close { display: none; }
 .settings-chevron { font-size: 17px; line-height: 1; transition: transform .2s ease; }

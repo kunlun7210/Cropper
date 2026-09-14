@@ -33,9 +33,9 @@
         <div>
           <p class="eyebrow">本地处理 · 不上传图片</p>
           <h1>四边扫描去黑边</h1>
-          <p class="intro">从图片中心向上、下、左、右分别扫描，裁剪连续的近黑色边框，以及截图带上来的深色状态栏、导航栏与黑留白。</p>
+          <p class="intro">从图片中心向上、下、左、右分别扫描，裁剪连续的近黑色边框。</p>
         </div>
-        <div class="badge">v1.2 20260914</div>
+        <div class="badge">v1.3 20260914</div>
       </header>
 
       <section class="panel import-panel">
@@ -52,10 +52,7 @@
 
       <details class="panel settings-panel">
         <summary class="settings-summary">
-          <div>
-            <h2>检测参数</h2>
-            <p>默认设置偏保守，宁可少裁一点，也不误伤主体。</p>
-          </div>
+          <h2>检测参数</h2>
           <span class="settings-toggle">
             <span class="settings-toggle-open">展开参数</span>
             <span class="settings-toggle-close">收起参数</span>
@@ -122,8 +119,8 @@
       <section id="results" class="results" aria-live="polite"></section>
 
       <footer class="footer-note">
-        <p>算法只判断边缘是否形成连续的近黑色直线区域，或截图上方是否为应用自身的深色界面栏（状态栏、导航栏、黑留白）。纯黑图片、主体本身贴边、或黑边与主体连成一体时，请在结果卡片中手动微调。若照片顶端本身就是一块平坦的暗色区域而被误裁，可在“检测参数”里关掉“界面栏”。</p>
-        <p>首次打开后可在 Safari 中点“分享”→“添加到主屏幕”。</p>
+        <p>黑边与主体连成一体、或照片本身偏暗时可能裁不准，可在结果卡片里手动微调。</p>
+        <p>在 Safari 中点“分享”→“添加到主屏幕”，即可像 App 一样使用。</p>
       </footer>
     </main>
     <script src="app.js"></script>
