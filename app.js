@@ -382,7 +382,9 @@ function analyzeImage(image) {
   if (viewer) {
     if (state.settings.sides.top && state.settings.detectChrome) {
       const estimate = Math.round(viewer.top / profile.height * image.naturalHeight);
-      detected.top = Math.max(detected.top, refineViewerEdge(image, estimate, true));
+      const edge = viewer.touchingToolbar ? Math.ceil(viewer.top / profile.height * image.naturalHeight)
+        : refineViewerEdge(image, estimate, true);
+      detected.top = Math.max(detected.top, edge);
     }
     const estimate = Math.round((profile.height - viewer.bottom) / profile.height * image.naturalHeight);
     const end = viewer.overlay ? estimate : refineViewerEdge(image, estimate, false);
@@ -470,7 +472,7 @@ function renderCard(item) {
     </div>
     ${item.error ? `<p class="error">${escapeHtml(item.error)}</p>` : `
       <p class="actual-crop">实际裁剪：上 ${values.top}px · 下 ${values.bottom}px · 左 ${values.left}px · 右 ${values.right}px</p>
-      ${item.viewer ? `<p class="viewer-note">已识别高德照片底栏${item.viewer.like ? "与点赞" : ""}${item.viewer.overlay ? "（含点赞覆盖的底部窄条）" : ""}。</p>` : ""}
+      ${item.viewer ? `<p class="viewer-note">已识别${item.viewer.elong ? "艺龙文字与 logo" : item.viewer.marks?.some(mark => mark.kind === "amap") ? "高德地图文字与 logo" : "照片底栏"}${item.viewer.like ? "及点赞爱心" : ""}${item.viewer.overlay ? "（含标识覆盖的底部窄条）" : ""}。</p>` : ""}
       <div class="preview-grid">
         <div class="preview-block"><span>原图</span><canvas class="preview-canvas" width="1" height="1"></canvas></div>
         <div class="preview-block"><span>裁剪结果</span><img class="result-image" alt="裁剪结果" /></div>

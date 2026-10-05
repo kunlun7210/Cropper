@@ -33,9 +33,9 @@
         <div>
           <p class="eyebrow">本地处理 · 不上传图片</p>
           <h1>四边扫描去黑边</h1>
-          <p class="intro">独立裁剪四边黑边，一并识别高德照片底栏与点赞。</p>
+          <p class="intro">独立裁剪四边黑边，一并识别照片底栏、标识与点赞。</p>
         </div>
-        <div class="badge">v1.4 20261005</div>
+        <div class="badge">v1.5 20261005</div>
       </header>
 
       <section class="panel import-panel">
@@ -89,8 +89,8 @@
           </div>
 
           <label class="viewer-option">
-            <input id="trimViewer" type="checkbox" checked /> 裁掉底部高德 / 点赞
-            <small>点赞覆盖在照片上时，会裁掉所在的底部窄条。关闭后保留原有检测。</small>
+            <input id="trimViewer" type="checkbox" checked /> 裁掉底部标识 / 点赞
+            <small>包含高德地图、艺龙文字及旁边 logo，也识别独立爱心。覆盖在照片上时裁掉所在的底部窄条。关闭后保留原有检测。</small>
           </label>
 
           <div class="side-options">
@@ -128,6 +128,7 @@
         <p>在 Safari 中点“分享”→“添加到主屏幕”，即可像 App 一样使用。</p>
       </footer>
     </main>
+    <script src="viewer-marks.js"></script>
     <script src="viewer-detector.js"></script>
     <script src="app.js"></script>
   </body>

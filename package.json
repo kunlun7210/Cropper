@@ -1,6 +1,6 @@
 {
   "name": "cropper-trim-black-border",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "四边扫描去黑边：完全在浏览器本地运行的截图裁剪 PWA",
   "scripts": {

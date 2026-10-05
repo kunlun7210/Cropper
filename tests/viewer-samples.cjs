@@ -14,6 +14,30 @@ if (!process.argv[2] || !process.argv[3]) {
 }
 const samples = path.resolve(process.argv[2]);
 const evidence = path.resolve(process.argv[3]);
+// Independent, manually inspected UI extents for the extra 19 samples.
+// End ranges leave a small anti-aliasing gap above the COMPLETE logo/heart,
+// not merely above the adjacent word. These coordinates are tests only.
+const extra = {
+  "IMG_8927.PNG": { top: 318, end: [2020, 2063] },
+  "IMG_8928.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
+  "IMG_8929.PNG": { top: 507, end: [2020, 2063] },
+  "IMG_8930.PNG": { top: 507, end: [2020, 2063] },
+  "IMG_8931.PNG": { top: 507, end: [2020, 2063] },
+  "IMG_8932.PNG": { top: 859, end: [1755, 1765] },
+  "IMG_8933.PNG": { top: 507, end: [2020, 2063] },
+  "IMG_8934.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
+  "IMG_8936.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
+  "IMG_8937.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
+  "IMG_8938.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
+  "IMG_8939.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
+  "IMG_8940.PNG": { top: 507, end: [2020, 2063] },
+  "IMG_8941.PNG": { top: 507, end: [2020, 2063] },
+  "IMG_8942.PNG": { top: 909, end: [1615, 1633], mark: "elong" },
+  "IMG_8943.PNG": { top: 859, end: [1645, 1673], mark: "elong" },
+  "IMG_8944.PNG": { top: 910, end: [1615, 1633], mark: "elong" },
+  "IMG_8945.PNG": { top: 909, end: [1615, 1633], mark: "elong" },
+  "IMG_8946.PNG": { top: 909, end: [1615, 1633], mark: "elong" },
+};
 let browser, server;
 async function main() {
   await fs.mkdir(evidence, { recursive: true });
@@ -44,7 +68,7 @@ async function main() {
         const analysisMs = performance.now() - started;
         const oldAnalyze = new Function('document', 'structuredClone', 'settings', oldLogic + '; state.settings = structuredClone(settings); return analyzeImage;')(document, structuredClone, state.settings);
         const oldDetected = oldAnalyze(item.image).detected;
-        const current = { detected: { ...item.detected }, values: { ...item.values }, viewer: item.viewer, width: item.rendered.canvas.width, height: item.rendered.canvas.height };
+        const current = { detected: { ...item.detected }, values: { ...item.values }, viewer: item.viewer, width: item.rendered.canvas.width, height: item.rendered.canvas.height, naturalHeight: item.image.naturalHeight };
         state.settings.trimViewer = false;
         const disabled = analyzeImage(item.image).detected;
         state.settings.trimViewer = true;
@@ -53,11 +77,11 @@ async function main() {
       assert.deepEqual(result.disabled, result.oldDetected, 'turning the feature off retains the previous algorithm exactly');
       if (folder === '旧版测试图' && !result.viewer) assert.deepEqual(result.detected, result.oldDetected, name + ': older border-only output unchanged');
       if (folder === '旧版测试图' && result.viewer) {
-        assert.ok(result.viewer.like || result.viewer.amap);
+        assert.ok(result.viewer.like || result.viewer.amap || result.viewer.elong);
         assert.ok(result.height > 400 && result.values.bottom > 500, name + ': older viewer footer also removed');
       }
       if (folder === '新版测试图') {
-        console.log('DETECT', name, JSON.stringify(result));
+        if (process.env.CROPPER_VERBOSE) console.log('DETECT', name, JSON.stringify(result));
         if (!result.viewer) {
           const code = (await fs.readFile(path.join(root, 'viewer-detector.js'), 'utf8')).split('\n').map((line, i) => line.replace(/return null;/g, 'return (console.log("stop", ' + (i + 1) + '), null);')).join('\n')
             .replace('const score = similarity(box, HEART);', 'const score = similarity(box, HEART); console.log("heart", box, score);')
@@ -83,26 +107,34 @@ async function main() {
         }, png);
         assert.equal(matches, true, 'PNG preserves cropped pixels as decoded by the browser');
         const expectedFile = path.join(samples, '新版需要达到的效果', name.replace(/\.png$/i, '.jpg'));
-        const expectedInfo = await sharp(expectedFile).metadata();
-        // The references were manually cropped and JPEG-encoded. Compare the
-        // overlapping content after a bounded translation, not JPEG bytes.
-        const source = await sharp(path.join(samples, folder, name)).resize({ width: 240 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-        const target = await sharp(expectedFile).resize({ width: 240 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
-        let best = { error: Infinity, top: 0 };
-        for (let top = 0; top <= source.info.height - target.info.height; top++) {
-          let error = 0, count = 0;
-          for (let y = 3; y < target.info.height - 3; y += 5) for (let x = 3; x < 237; x += 5) {
-            const a = ((y + top) * 240 + x) * 3, b = (y * 240 + x) * 3;
-            for (let c = 0; c < 3; c++) { error += Math.abs(source.data[a + c] - target.data[b + c]); count++; }
+        if (extra[name]) {
+          const expected = extra[name], end = result.naturalHeight - result.values.bottom;
+          assert.ok(Math.abs(result.values.top - expected.top) <= 3, name + ': no toolbar residue');
+          assert.ok(end >= expected.end[0] && end <= expected.end[1], name + ': full logo / standalone heart removed with bounded photo loss');
+          if (expected.mark) assert.equal(result.viewer[expected.mark], true, name + ': watermark identity');
+          result.reference = { manuallyInspected: true, ...expected };
+        } else {
+          const expectedInfo = await sharp(expectedFile).metadata();
+          // The references were manually cropped and JPEG-encoded. Compare the
+          // overlapping content after a bounded translation, not JPEG bytes.
+          const source = await sharp(path.join(samples, folder, name)).resize({ width: 240 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+          const target = await sharp(expectedFile).resize({ width: 240 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+          let best = { error: Infinity, top: 0 };
+          for (let top = 0; top <= source.info.height - target.info.height; top++) {
+            let error = 0, count = 0;
+            for (let y = 3; y < target.info.height - 3; y += 5) for (let x = 3; x < 237; x += 5) {
+              const a = ((y + top) * 240 + x) * 3, b = (y * 240 + x) * 3;
+              for (let c = 0; c < 3; c++) { error += Math.abs(source.data[a + c] - target.data[b + c]); count++; }
+            }
+            error /= count;
+            if (error < best.error) best = { error, top };
           }
-          error /= count;
-          if (error < best.error) best = { error, top };
+          result.reference = { width: expectedInfo.width, height: expectedInfo.height, top: Math.round(best.top / 240 * 1206), averagePixelError: best.error };
+          assert.ok(Math.abs(result.width - expectedInfo.width) <= 3);
+          assert.ok(Math.abs(result.height - expectedInfo.height) <= 25, name + ': crop height matches reference within manual-crop tolerance');
+          assert.ok(Math.abs(result.values.top - result.reference.top) <= 20, name + ': crop starts at reference content within manual-crop tolerance');
+          assert.ok(best.error < 15, name + ': reference is the same photo region');
         }
-        result.reference = { width: expectedInfo.width, height: expectedInfo.height, top: Math.round(best.top / 240 * 1206), averagePixelError: best.error };
-        assert.ok(Math.abs(result.width - expectedInfo.width) <= 3);
-        assert.ok(Math.abs(result.height - expectedInfo.height) <= 25, name + ': crop height matches reference within manual-crop tolerance');
-        assert.ok(Math.abs(result.values.top - result.reference.top) <= 20, name + ': crop starts at reference content within manual-crop tolerance');
-        assert.ok(best.error < 15, name + ': reference is the same photo region');
       }
       report.push({ folder, name, ...result });
       console.log('PASS', folder, name, result.width + 'x' + result.height);
@@ -152,9 +184,39 @@ async function main() {
     console.log('PASS variant', name, JSON.stringify(viewer));
   }
   for (const width of [844, 1608]) await variant('scaled-' + width + '.jpg', await sharp(seed).resize({ width }).jpeg({ quality: 90 }).toBuffer(), true, true);
+  for (const name of ["IMG_8927.PNG", "IMG_8930.PNG", "IMG_8934.PNG", "IMG_8943.PNG", "IMG_8946.PNG"]) {
+    for (const width of [844, 1608]) {
+      const buffer = await sharp(path.join(samples, '新版测试图', name)).resize({ width }).jpeg({ quality: 88 }).toBuffer();
+      await variant(name + '-' + width + '.jpg', buffer, true, true);
+      const result = await page.evaluate(() => ({ viewer: state.items[0].viewer, values: state.items[0].values, height: state.items[0].image.naturalHeight }));
+      if (extra[name].mark) assert.equal(result.viewer[extra[name].mark], true, 'watermark recognition survives resizing and JPEG');
+      const end = (result.height - result.values.bottom) * 1206 / width;
+      assert.ok(end >= extra[name].end[0] - 6 && end <= extra[name].end[1] + 3, name + ': resized export excludes full UI mark');
+    }
+  }
+  const hotel = await fs.readFile(path.join(samples, '新版测试图', 'IMG_8946.PNG'));
+  const logoOnly = await sharp(hotel).composite([{ input: Buffer.from('<svg width="1206" height="909"><rect width="1206" height="909" fill="black"/></svg>'), left: 0, top: 1713 }]).png().toBuffer();
+  await variant('elong-without-like.png', logoOnly, true, false);
+  assert.equal(await page.evaluate(() => state.items[0].viewer.elong), true, 'logo and word recognized without a heart');
+  const noHotelToolbar = await sharp(hotel).composite([{ input: Buffer.from('<svg width="1206" height="318"><rect width="1206" height="318" fill="black"/></svg>'), left: 0, top: 0 }]).png().toBuffer();
+  await variant('watermark-without-viewer-toolbar.png', noHotelToolbar, false);
   // Erase only the like control for the author-only case, using a black
   // rectangle; no original sample is modified on disk.
   const png = await fs.readFile(seed);
+  const glyph = await sharp(png).extract({ left: 1006, top: 2066, width: 60, height: 55 }).png().toBuffer();
+  const onlyHeart = await sharp(png).composite([
+    { input: Buffer.from('<svg width="1206" height="572"><rect width="1206" height="572" fill="black"/></svg>'), left: 0, top: 2050 },
+    { input: glyph, left: 1006, top: 2066 },
+  ]).png().toBuffer();
+  await variant('one-heart-no-word-no-author.png', onlyHeart, true, true);
+  const map = await fs.readFile(path.join(samples, '新版测试图', 'IMG_8934.PNG'));
+  const mapOnly = await sharp(map).composite([
+    { input: Buffer.from('<svg width="1206" height="506"><rect width="1206" height="506" fill="black"/></svg>'), left: 0, top: 2116 },
+    { input: Buffer.from('<svg width="160" height="52"><rect width="160" height="52" fill="black"/></svg>'), left: 1006, top: 2064 },
+  ]).png().toBuffer();
+  await variant('amap-logo-without-like.png', mapOnly, true);
+  assert.equal(await page.evaluate(() => state.items[0].viewer.amap), true);
+  assert.ok(await page.evaluate(() => state.items[0].image.naturalHeight - state.items[0].values.bottom <= 2024), 'whole arrow logo removed without like text');
   const authorOnly = await sharp(png).composite([{ input: Buffer.from('<svg width="216" height="65"><rect width="216" height="65" fill="black"/></svg>'), left: 990, top: 2060 }]).png().toBuffer();
   await variant('author-only.png', authorOnly, true, false);
   for (const shape of ['rect', 'circle']) {
@@ -170,8 +232,8 @@ async function main() {
   await page.screenshot({ path: path.join(evidence, 'mobile-preview.png'), fullPage: true });
   const all = report.filter(item => item.folder === '新版测试图').map(item => path.join(samples, item.folder, item.name));
   await page.locator('#fileInput').setInputFiles(all);
-  await page.waitForFunction(() => state.items.length === 8 && document.querySelectorAll('.result-card').length === 8);
-  assert.equal(await page.locator('.viewer-note').count(), 8);
+  await page.waitForFunction(count => state.items.length === count && document.querySelectorAll('.result-card').length === count, all.length);
+  assert.equal(await page.locator('.viewer-note').count(), all.length);
   assert.deepEqual(await page.locator('.result-card h3').allTextContents(), report.filter(item => item.folder === '新版测试图').map(item => item.name));
   console.log('PASS real sample batch import and original ordering');
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
@@ -181,6 +243,11 @@ async function main() {
   await page.locator('#fileInput').setInputFiles(seed);
   await page.waitForFunction(() => state.items[0]?.viewer?.like);
   assert.equal(await page.locator('.viewer-note').count(), 1);
+  for (const name of ["IMG_8934.PNG", "IMG_8946.PNG"]) {
+    await page.locator('#fileInput').setInputFiles(path.join(samples, '新版测试图', name));
+    await page.waitForFunction(name => state.items[0]?.file.name === name && state.items[0]?.viewer, name);
+    assert.equal(await page.evaluate(key => state.items[0].viewer[key], extra[name].mark), true, 'actual logo recognition works offline');
+  }
   console.log('PASS actual screenshot detection offline, including cached recognition module');
   assert.deepEqual(errors, []);
   await fs.writeFile(path.join(evidence, 'report.json'), JSON.stringify(report, null, 2));

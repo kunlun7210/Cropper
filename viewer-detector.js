@@ -56,19 +56,9 @@
       rows[Math.floor(i / w)].darkRatio += dark[i] / w;
     }
 
-    // Require a viewer toolbar, followed by a genuinely full-width black
-    // gap. Ordinary photos with text or a heart must not trigger this path.
-    let gapStart = -1, gapEnd = -1;
-    const minimumGap = Math.max(6, Math.round(h * 0.018));
-    for (let y = Math.round(h * 0.07); y < h * 0.42; y++) {
-      if (rows[y].darkRatio >= 0.995) {
-        const start = y;
-        while (y < h * 0.46 && rows[y].darkRatio >= 0.995) y++;
-        if (y - start >= minimumGap) { gapStart = start; gapEnd = y; break; }
-      }
-    }
-    if (gapStart < h * 0.07 || gapStart > h * 0.22 || gapEnd < 0) return null;
-    const toolbarTop = Math.floor(gapStart * 0.55);
+    // The toolbar identifies the viewer even when the photo touches it and
+    // the lower toolbar is translucent. Black letterboxing is optional.
+    const toolbarTop = Math.floor(h * 0.065), gapStart = Math.ceil(h * 0.12);
     function whiteCount(x0, x1, y0, y1) {
       let count = 0;
       for (let y = Math.floor(y0); y < Math.ceil(y1); y++)
@@ -78,15 +68,27 @@
     if ([[0.035, 0.13], [0.43, 0.61], [0.84, 0.98]].some(([a, b]) =>
       whiteCount(w * a, w * b, toolbarTop, gapStart) < w * w * 0.00012)) return null;
     let uniform = 0, total = 0;
-    const sample = (Math.floor(gapStart * 0.3) * w + Math.floor(w * 0.28)) * 4;
+    const sample = (Math.floor(h * 0.03) * w + Math.floor(w * 0.28)) * 4;
     const background = [pixels[sample], pixels[sample + 1], pixels[sample + 2]];
     if (Math.max(...background) < 28 || Math.max(...background) > 100) return null;
-    for (let y = toolbarTop; y < gapStart - 2; y++) for (let x = 0; x < w; x++) {
+    for (let y = Math.floor(h * 0.015); y < h * 0.07; y++) for (let x = 0; x < w; x++) {
       const i = (y * w + x) * 4;
       if (background.every((v, channel) => Math.abs(pixels[i + channel] - v) <= 12)) uniform++;
       total++;
     }
-    if (uniform / total < 0.84) return null;
+    if (uniform / total < 0.72) return null;
+    let gapEnd = -1;
+    for (let y = Math.floor(h * 0.09); y < h * 0.16; y++) {
+      let similar = 0;
+      for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        if (background.every((v, channel) => Math.abs(pixels[i + channel] - v) <= 35)) similar++;
+      }
+      if (similar / w < 0.65) { gapEnd = y; break; }
+    }
+    if (gapEnd < 0) return null;
+    const touchingToolbar = rows[gapEnd].darkRatio < 0.985;
+    while (gapEnd < h * 0.46 && rows[gapEnd].darkRatio >= 0.985) gapEnd++;
 
     function similarity(box, template) {
       let ink = 0, inkMatch = 0, blank = 0, blankMatch = 0;
@@ -156,8 +158,20 @@
         if (score.ink >= 0.94 && score.blank >= 0.80) { amap = band; break; }
       }
     }
-    if (!heart && !amap) return null;
-
+    // Estimate the photo's lower edge from a sustained image band. Sparse
+    // author/date/footer rows cannot masquerade as the photo.
+    let bandEnd = -1, run = 0;
+    for (let y = h - 1; y > Math.max(gapEnd + h * 0.18, h * 0.5); y--) {
+      if (rows[y].darkRatio < 0.65) {
+        if (!run) bandEnd = y + 1;
+        if (++run >= Math.max(8, Math.ceil(h * 0.008))) break;
+      } else { run = 0; bandEnd = -1; }
+    }
+    const marks = typeof ViewerMarks !== "undefined" && bandEnd > 0
+      ? ViewerMarks.find(profile, bandEnd, HEART) : [];
+    const scannedHeart = marks.find(mark => mark.kind === "heart");
+    if (!heart && scannedHeart) heart = scannedHeart;
+    if (!heart && !amap && !marks.length) return null;
     const exclusions = authorBands.filter((band) => amap === band || (heart && band.y > heart.y + heart.height))
       .map((band) => ({ x0: w * 0.015, x1: w * 0.74, y0: band.y - w * 0.045, y1: band.y + band.height + w * 0.045 }));
     if (heart) exclusions.push({ x0: heart.x - w * 0.008, x1: w, y0: heart.y - w * 0.01, y1: heart.y + heart.height + w * 0.01 });
@@ -179,12 +193,22 @@
       photoEnd = y;
     }
     if (h - photoEnd < h * 0.04 || photoEnd - gapEnd < h * 0.18) return null;
-    if (heart && photoEnd > heart.y + heart.height + w * 0.025) return null;
+    if (bandEnd > 0 && photoEnd > bandEnd + h * 0.03) photoEnd = bandEnd;
     // If the heart overlays the photo, remove its full-width strip with a
     // small glyph-sized safety gap. If it sits in black padding, lose no photo.
-    const overlay = heart && heart.y < photoEnd && heart.y > photoEnd - w * 0.12;
-    const bottom = overlay ? Math.min(photoEnd, heart.y - Math.max(2, Math.round(heart.height * 0.40))) : photoEnd;
-    return { top: gapEnd, bottom: h - bottom, like: Boolean(heart), amap: Boolean(amap), overlay: Boolean(overlay) };
+    const overlay = heart && heart.y < photoEnd && heart.y > photoEnd - w * 0.30;
+    let bottom = overlay ? Math.min(photoEnd, heart.y - Math.max(2, Math.round(heart.height * 0.40))) : photoEnd;
+    for (const mark of marks.filter(mark => mark.kind !== "heart"))
+      bottom = Math.min(bottom, mark.y - Math.max(2, Math.ceil(w * 0.006)));
+    // A visible author row and its taller avatar can themselves overlay the
+    // photo (no black footer). Remove the whole row, including the avatar.
+    if (heart && photoEnd - heart.y > w * 0.13) {
+      const author = authorBands.find(band => band.y > heart.y);
+      if (author) bottom = Math.min(bottom, author.y - Math.ceil(w * 0.04), heart.y - 3);
+    }
+    return { top: gapEnd, bottom: h - bottom, like: Boolean(heart),
+      amap: Boolean(amap || marks.some(mark => mark.kind === "amap")),
+      elong: marks.some(mark => mark.kind === "elong"), overlay: Boolean(overlay || bottom < photoEnd), touchingToolbar, marks };
   }
   scope.ViewerDetector = { analyze };
   if (typeof module !== "undefined" && module.exports) module.exports = scope.ViewerDetector;
