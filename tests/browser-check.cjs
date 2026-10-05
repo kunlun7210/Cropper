@@ -52,6 +52,13 @@ async function main() {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
+  assert.equal(await page.locator('.badge').innerText(), 'v1.5 · 2026.10.05');
+  const versionStyle = await page.locator('.badge').evaluate(el => {
+    const css = getComputedStyle(el);
+    return { border: css.borderTopWidth, background: css.backgroundColor };
+  });
+  assert.deepEqual(versionStyle, { border: '0px', background: 'rgba(0, 0, 0, 0)' });
+  console.log('PASS 版本日期格式正确且没有外框');
 
   assert.equal(await page.locator('#batchActions').isVisible(), false, '空状态不得显示批量操作条');
   console.log('PASS 空状态隐藏批量操作条（.batch-actions[hidden] 生效）');

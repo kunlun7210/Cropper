@@ -1,4 +1,4 @@
-const CACHE_NAME = "screenshot-trimmer-v21";
+const CACHE_NAME = "screenshot-trimmer-v22";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./viewer-marks.js", "./viewer-detector.js", "./app.js", "./manifest.json",
   "./icons/favicon-cai-v1.ico", "./icons/icon-cai-v1.svg",

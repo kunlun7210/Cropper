@@ -23,7 +23,7 @@ const extra = {
   "IMG_8929.PNG": { top: 507, end: [2020, 2063] },
   "IMG_8930.PNG": { top: 507, end: [2020, 2063] },
   "IMG_8931.PNG": { top: 507, end: [2020, 2063] },
-  "IMG_8932.PNG": { top: 859, end: [1755, 1765] },
+  "IMG_8932.PNG": { top: 859, end: [1670, 1705], mark: "amap" },
   "IMG_8933.PNG": { top: 507, end: [2020, 2063] },
   "IMG_8934.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
   "IMG_8936.PNG": { top: 507, end: [1985, 2024], mark: "amap" },
@@ -111,7 +111,10 @@ async function main() {
           const expected = extra[name], end = result.naturalHeight - result.values.bottom;
           assert.ok(Math.abs(result.values.top - expected.top) <= 3, name + ': no toolbar residue');
           assert.ok(end >= expected.end[0] && end <= expected.end[1], name + ': full logo / standalone heart removed with bounded photo loss');
-          if (expected.mark) assert.equal(result.viewer[expected.mark], true, name + ': watermark identity');
+          if (expected.mark) {
+            assert.equal(result.viewer[expected.mark], true, name + ': watermark identity');
+            assert.ok(result.viewer.marks.some(mark => mark.kind === expected.mark), name + ': photo watermark, not just author name');
+          }
           result.reference = { manuallyInspected: true, ...expected };
         } else {
           const expectedInfo = await sharp(expectedFile).metadata();
@@ -184,17 +187,43 @@ async function main() {
     console.log('PASS variant', name, JSON.stringify(viewer));
   }
   for (const width of [844, 1608]) await variant('scaled-' + width + '.jpg', await sharp(seed).resize({ width }).jpeg({ quality: 90 }).toBuffer(), true, true);
-  for (const name of ["IMG_8927.PNG", "IMG_8930.PNG", "IMG_8934.PNG", "IMG_8943.PNG", "IMG_8946.PNG"]) {
+  for (const name of ["IMG_8927.PNG", "IMG_8930.PNG", "IMG_8932.PNG", "IMG_8934.PNG", "IMG_8943.PNG", "IMG_8946.PNG"]) {
     for (const width of [844, 1608]) {
       const buffer = await sharp(path.join(samples, '新版测试图', name)).resize({ width }).jpeg({ quality: 88 }).toBuffer();
       await variant(name + '-' + width + '.jpg', buffer, true, true);
       const result = await page.evaluate(() => ({ viewer: state.items[0].viewer, values: state.items[0].values, height: state.items[0].image.naturalHeight }));
-      if (extra[name].mark) assert.equal(result.viewer[extra[name].mark], true, 'watermark recognition survives resizing and JPEG');
+      if (extra[name].mark) {
+        assert.equal(result.viewer[extra[name].mark], true, 'watermark recognition survives resizing and JPEG');
+        assert.ok(result.viewer.marks.some(mark => mark.kind === extra[name].mark), 'resized photo mark, not just footer author');
+      }
       const end = (result.height - result.values.bottom) * 1206 / width;
       assert.ok(end >= extra[name].end[0] - 6 && end <= extra[name].end[1] + 3, name + ': resized export excludes full UI mark');
     }
   }
   const hotel = await fs.readFile(path.join(samples, '新版测试图', 'IMG_8946.PNG'));
+  const compactMap = await fs.readFile(path.join(samples, '新版测试图', 'IMG_8932.PNG'));
+  // Exercise both orders in one photo, with a separate like in the footer.
+  // Patch coordinates are private fixture construction, never production rules.
+  const hotelMark = await sharp(hotel).extract({ left: 1050, top: 1625, width: 140, height: 65 }).png().toBuffer();
+  const compactMapMark = await sharp(compactMap).extract({ left: 1038, top: 1695, width: 165, height: 65 }).png().toBuffer();
+  const combinations = [
+    { name: 'elong-above-amap-and-like.png', buffer: await sharp(compactMap).composite([{ input: hotelMark, left: 1040, top: 1570 }]).png().toBuffer(), end: [1550, 1578] },
+    { name: 'amap-above-elong-and-like.png', buffer: await sharp(hotel).composite([{ input: compactMapMark, left: 1038, top: 1544 }]).png().toBuffer(), end: [1530, 1555] },
+  ];
+  const combinationReport = [];
+  for (const sample of combinations) {
+    await variant(sample.name, sample.buffer, true, true);
+    const result = await page.evaluate(() => ({ viewer: state.items[0].viewer, values: state.items[0].values, height: state.items[0].image.naturalHeight }));
+    for (const kind of ['amap', 'elong']) assert.ok(result.viewer.marks.some(mark => mark.kind === kind), sample.name + ': both in-photo logos identified');
+    const end = result.height - result.values.bottom;
+    assert.ok(end >= sample.end[0] && end <= sample.end[1], sample.name + ': crop above the uppermost COMPLETE mark');
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: '下载图片', exact: true }).click();
+    await (await download).saveAs(path.join(evidence, sample.name));
+    combinationReport.push({ name: sample.name, expectedEnd: sample.end, ...result });
+  }
+  await fs.writeFile(path.join(evidence, 'combinations.json'), JSON.stringify(combinationReport, null, 2));
+  console.log('PASS uppermost complete logo in both multi-element orders');
   const logoOnly = await sharp(hotel).composite([{ input: Buffer.from('<svg width="1206" height="909"><rect width="1206" height="909" fill="black"/></svg>'), left: 0, top: 1713 }]).png().toBuffer();
   await variant('elong-without-like.png', logoOnly, true, false);
   assert.equal(await page.evaluate(() => state.items[0].viewer.elong), true, 'logo and word recognized without a heart');
@@ -243,10 +272,11 @@ async function main() {
   await page.locator('#fileInput').setInputFiles(seed);
   await page.waitForFunction(() => state.items[0]?.viewer?.like);
   assert.equal(await page.locator('.viewer-note').count(), 1);
-  for (const name of ["IMG_8934.PNG", "IMG_8946.PNG"]) {
+  for (const name of ["IMG_8932.PNG", "IMG_8934.PNG", "IMG_8946.PNG"]) {
     await page.locator('#fileInput').setInputFiles(path.join(samples, '新版测试图', name));
     await page.waitForFunction(name => state.items[0]?.file.name === name && state.items[0]?.viewer, name);
     assert.equal(await page.evaluate(key => state.items[0].viewer[key], extra[name].mark), true, 'actual logo recognition works offline');
+    assert.ok(await page.evaluate(key => state.items[0].viewer.marks.some(mark => mark.kind === key), extra[name].mark), 'offline in-photo mark, not just author');
   }
   console.log('PASS actual screenshot detection offline, including cached recognition module');
   assert.deepEqual(errors, []);

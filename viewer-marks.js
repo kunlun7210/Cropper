@@ -3,6 +3,26 @@
 (function (scope) {
   "use strict";
   const MASKS = {
+  "amapCompact": [
+    "001111111111100111000000000000000000000000000000000000000000",
+    "011111111111100111100000000000000000000000000000000000000000",
+    "011111111111100111100000000000000000000000000000000000000000",
+    "011111111111100000100001111111000001111000101010000001000000",
+    "111111111111100000100001000000000100100100100000000010001000",
+    "000011100010000000000001111111000001111100100000000001110000",
+    "000011100000000000000001000000001000000000100000000000000000",
+    "011111000000000001100000111110100000000000100000100000000000",
+    "011100000001000001100000100000000000100100100000000011110000",
+    "110000000010000011100000000000000000000000100000000000000000",
+    "111000000100000011100000000000000000000000000000000000000000",
+    "111110001000000011100000000000000000000000000000000000000000",
+    "111111110000000011100001010001010000101000000100000100111100",
+    "111111100000000111100000000001000000100000000000010000000000",
+    "011111100100000111100001110001000011101110000110001100000000",
+    "011111101110000111100000000000000000000000000000000000000000",
+    "001111111111000111000000000000000000000000000000000000000000",
+    "000111111111000110000000000000000000000000000000000000000000"
+  ],
   "elong": [
     "0111000000000000000000000000000000000000000000",
     "0001111000000000000000000011000110000010000000",
@@ -89,8 +109,11 @@
       return b > points.length * 4 ? dot / Math.sqrt(a * b) : 0;
     }
     const best = [];
-    for (const [kind, mask, fraction, threshold] of [
+    for (const [kind, mask, fraction, threshold, whole = false] of [
       ["amap", MASKS.amap, 0.1174, 0.58], ["elong", MASKS.elong, 0.10, 0.58],
+      // Compact model includes the full arrow and text. Its stricter cutoff
+      // still permits the subpixel changes caused by resize/JPEG decoding.
+      ["amap", MASKS.amapCompact, 0.1304, 0.65, true],
       ["heart", heartMask, 0.046, 0.63],
     ]) {
       let match = { kind, score: 0 };
@@ -101,7 +124,7 @@
       ]);
       for (const width of widths) {
         const baseHeight = Math.round(width * mask.length / mask[0].length * (kind === "heart" ? 0.87 : 1));
-        for (const delta of kind === "elong" ? [-1, 0, 1, 2] : [0]) {
+        for (const delta of kind === "elong" ? [-1, 0, 1, 2] : whole ? [-1, 0, 1] : [0]) {
           const height = Math.max(6, baseHeight + delta);
           const { points, probes } = template(mask, width, height);
           const ymin = Math.max(Math.floor(h * 0.50), photoEnd - Math.ceil(w * 0.16));
@@ -115,7 +138,7 @@
       }
       // The map word sits to the right of a taller arrow logo. Return a box
       // covering BOTH, not just the detected text. eLong mask includes its logo.
-      if (match.kind === "amap" && match.score >= threshold) {
+      if (match.kind === "amap" && !whole && match.score >= threshold) {
         match.y -= Math.ceil(w * 0.013);
         match.x -= Math.ceil(w * 0.070);
         match.height += Math.ceil(w * 0.04);
