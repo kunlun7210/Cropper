@@ -144,6 +144,9 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
 .result-head p { margin: 0; color: var(--muted); font-size: 12px; }
 .detected { color: var(--green) !important; text-align: right; }
 .actual-crop { margin: 12px 18px 0; color: var(--blue); font-size: 12px; line-height: 1.5; }
+.viewer-note { margin: 8px 18px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.viewer-option { display: block; margin-top: 18px; font-size: 14px; line-height: 1.6; }
+.viewer-option small { display: block; margin-top: 6px; color: var(--muted); }
 .batch-actions[hidden] { display: none; }
 .preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px 18px; }
 .preview-block { min-width: 0; }

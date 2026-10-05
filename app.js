@@ -4,6 +4,7 @@ const DEFAULTS = {
   coverage: 92,
   minThickness: 1,
   padding: 0,
+  trimViewer: true,
   detectChrome: true,
   sides: { top: true, bottom: true, left: true, right: true },
 };
@@ -76,6 +77,7 @@ function readSettings() {
   state.settings.coverage = Number(controls.coverage.value);
   state.settings.minThickness = Number(controls.minThickness.value);
   state.settings.padding = Number(controls.padding.value);
+  state.settings.trimViewer = $("trimViewer")?.checked ?? DEFAULTS.trimViewer;
   state.settings.detectChrome = controls.detectChrome.checked;
   document.querySelectorAll(".side-toggle").forEach((input) => {
     state.settings.sides[input.dataset.side] = input.checked;
@@ -99,6 +101,7 @@ function resetSettings() {
   controls.coverage.value = DEFAULTS.coverage;
   controls.minThickness.value = DEFAULTS.minThickness;
   controls.padding.value = DEFAULTS.padding;
+  if ($("trimViewer")) $("trimViewer").checked = DEFAULTS.trimViewer;
   controls.detectChrome.checked = DEFAULTS.detectChrome;
   document.querySelectorAll(".side-toggle").forEach((input) => {
     input.checked = DEFAULTS.sides[input.dataset.side];
@@ -195,7 +198,7 @@ function createProfile(image, settings, maxDimension = 1000) {
     columns.push(profileLine(count, darkCount, total));
   }
 
-  return { width, height, rows, columns };
+  return { width, height, rows, columns, pixels };
 }
 
 // v1 判据：严格近黑。保留原样，保证纯黑边框的既有行为完全不变。
@@ -337,6 +340,30 @@ function detectSide(mask, side, settings) {
   return boundary;
 }
 
+function refineViewerEdge(image, estimate, fromTop) {
+  // Locate the last sub-sampling pixel at native resolution, so a scaled
+  // black/photo transition does not leave a one-pixel black line in exports.
+  const radius = Math.max(3, Math.ceil(image.naturalHeight / 1000) * 2);
+  const start = clamp(estimate - radius, 0, image.naturalHeight - 1);
+  const end = clamp(estimate + radius, start + 1, image.naturalHeight);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = end - start;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(image, 0, start, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  for (let offset = 0; offset < canvas.height; offset++) {
+    const y = fromTop ? offset : canvas.height - offset - 1;
+    let content = 0;
+    for (let x = 0; x < canvas.width; x++) {
+      const i = (y * canvas.width + x) * 4;
+      if (Math.max(pixels[i], pixels[i + 1], pixels[i + 2]) > 42) content++;
+    }
+    if (content / canvas.width > 0.03) return start + y + (fromTop ? 0 : 1);
+  }
+  return estimate;
+}
+
 function analyzeImage(image) {
   const profile = createProfile(image, state.settings);
   const rowMask = borderMask(profile.rows, state.settings);
@@ -350,7 +377,18 @@ function analyzeImage(image) {
       ? Math.round(depth / profile.height * image.naturalHeight)
       : Math.round(depth / profile.width * image.naturalWidth);
   }
-  return { detected, profile };
+  const viewer = state.settings.trimViewer && state.settings.sides.bottom && typeof ViewerDetector !== "undefined"
+    ? ViewerDetector.analyze(profile) : null;
+  if (viewer) {
+    if (state.settings.sides.top && state.settings.detectChrome) {
+      const estimate = Math.round(viewer.top / profile.height * image.naturalHeight);
+      detected.top = Math.max(detected.top, refineViewerEdge(image, estimate, true));
+    }
+    const estimate = Math.round((profile.height - viewer.bottom) / profile.height * image.naturalHeight);
+    const end = viewer.overlay ? estimate : refineViewerEdge(image, estimate, false);
+    detected.bottom = Math.max(detected.bottom, image.naturalHeight - end);
+  }
+  return { detected, profile, viewer };
 }
 
 function cropImage(item, values) {
@@ -432,6 +470,7 @@ function renderCard(item) {
     </div>
     ${item.error ? `<p class="error">${escapeHtml(item.error)}</p>` : `
       <p class="actual-crop">实际裁剪：上 ${values.top}px · 下 ${values.bottom}px · 左 ${values.left}px · 右 ${values.right}px</p>
+      ${item.viewer ? `<p class="viewer-note">已识别高德照片底栏${item.viewer.like ? "与点赞" : ""}${item.viewer.overlay ? "（含点赞覆盖的底部窄条）" : ""}。</p>` : ""}
       <div class="preview-grid">
         <div class="preview-block"><span>原图</span><canvas class="preview-canvas" width="1" height="1"></canvas></div>
         <div class="preview-block"><span>裁剪结果</span><img class="result-image" alt="裁剪结果" /></div>
@@ -516,6 +555,7 @@ async function loadFiles(fileList) {
     if (item.error) return item;
     const analysis = analyzeImage(item.image);
     item.detected = analysis.detected;
+    item.viewer = analysis.viewer;
     item.values = applyPadding(analysis.detected);
     return item;
   });
@@ -529,6 +569,7 @@ function reanalyzeAll() {
     if (!item.image) return;
     const analysis = analyzeImage(item.image);
     item.detected = analysis.detected;
+    item.viewer = analysis.viewer;
     item.values = applyPadding(analysis.detected);
   });
   renderAll();
@@ -643,6 +684,7 @@ Object.values(controls).forEach((control) => {
   control.addEventListener("change", applyChangedSettings);
 });
 document.querySelectorAll(".side-toggle").forEach((control) => control.addEventListener("change", applyChangedSettings));
+$("trimViewer")?.addEventListener("change", applyChangedSettings);
 $("fileInput").addEventListener("change", (event) => loadFiles(event.target.files));
 $("reanalyze").addEventListener("click", reanalyzeAll);
 $("resetSettings").addEventListener("click", resetSettings);
