@@ -5,6 +5,7 @@ const DEFAULTS = {
   minThickness: 1,
   padding: 0,
   trimViewer: true,
+  ocrCorners: false,
   detectChrome: true,
   sides: { top: true, bottom: true, left: true, right: true },
 };
@@ -41,7 +42,7 @@ const CHROME_DENSITY = 0.80;     // 游程内"界面栏行"占比下限
 const CHROME_CONTRAST_MIN = 100; // 界面栏之后首行的亮度下限
 const CHROME_CONTRAST_RATIO = 1.6; // 或为界面栏亮度中位数的若干倍
 
-const state = { items: [], settings: structuredClone(DEFAULTS) };
+const state = { items: [], settings: structuredClone(DEFAULTS), generation: 0, importGeneration: 0, pending: Promise.resolve() };
 const $ = (id) => document.getElementById(id);
 const results = $("results");
 const batchActions = $("batchActions");
@@ -78,6 +79,7 @@ function readSettings() {
   state.settings.minThickness = Number(controls.minThickness.value);
   state.settings.padding = Number(controls.padding.value);
   state.settings.trimViewer = $("trimViewer")?.checked ?? DEFAULTS.trimViewer;
+  state.settings.ocrCorners = $("ocrCorners")?.checked ?? false;
   state.settings.detectChrome = controls.detectChrome.checked;
   document.querySelectorAll(".side-toggle").forEach((input) => {
     state.settings.sides[input.dataset.side] = input.checked;
@@ -102,6 +104,7 @@ function resetSettings() {
   controls.minThickness.value = DEFAULTS.minThickness;
   controls.padding.value = DEFAULTS.padding;
   if ($("trimViewer")) $("trimViewer").checked = DEFAULTS.trimViewer;
+  if ($("ocrCorners")) $("ocrCorners").checked = DEFAULTS.ocrCorners;
   controls.detectChrome.checked = DEFAULTS.detectChrome;
   document.querySelectorAll(".side-toggle").forEach((input) => {
     input.checked = DEFAULTS.sides[input.dataset.side];
@@ -390,7 +393,99 @@ function analyzeImage(image) {
     const end = viewer.overlay ? estimate : refineViewerEdge(image, estimate, false);
     detected.bottom = Math.max(detected.bottom, image.naturalHeight - end);
   }
-  return { detected, profile, viewer };
+  let photo = null;
+  if (state.settings.ocrCorners && state.settings.trimViewer) {
+    const layout = viewer || ViewerDetector.locate(profile);
+    if (layout?.photo) {
+      photo = {
+        left: Math.round(layout.photo.left / profile.width * image.naturalWidth),
+        right: Math.round(layout.photo.right / profile.width * image.naturalWidth),
+        top: layout.touchingToolbar ? Math.ceil(layout.photo.top / profile.height * image.naturalHeight)
+          : refineViewerEdge(image, Math.round(layout.photo.top / profile.height * image.naturalHeight), true),
+        bottom: refineViewerEdge(image, Math.round(layout.photo.bottom / profile.height * image.naturalHeight), false),
+      };
+    } else {
+      // 定位时独立判断四边，关闭某个裁剪方向不会让 OCR 扫到外围黑留白。
+      const edges = {};
+      for (const side of Object.keys(detected)) {
+        const depth = detectSide(maskBySide[side], side, state.settings);
+        edges[side] = Math.round(depth / (side === 'top' || side === 'bottom' ? profile.height : profile.width)
+          * (side === 'top' || side === 'bottom' ? image.naturalHeight : image.naturalWidth));
+      }
+      photo = { left: edges.left, top: edges.top, right: image.naturalWidth - edges.right, bottom: image.naturalHeight - edges.bottom };
+    }
+  }
+  return { detected, profile, viewer, photo };
+}
+
+function viewerNote(item) {
+  const names = [];
+  if (item.viewer?.elong) names.push('艺龙文字与 logo');
+  if (item.viewer?.amap || item.viewer?.marks?.some(mark => mark.kind === 'amap')) names.push('高德地图文字与 logo');
+  if (item.viewer?.like) names.push('点赞爱心');
+  if (item.viewer && !names.length) names.push('照片底栏');
+  for (const mark of item.ocrMarks || []) if (!names.some(name => name.includes(mark.name))) names.push(`${mark.name}角落标识`);
+  return names.length ? `已识别${names.join('、')}。` : '';
+}
+
+// 串行识别并及时释放 worker。新参数/新导入使旧任务失效；手动改边不被晚到的结果覆盖。
+function scheduleCornerScan() {
+  const generation = ++state.generation;
+  const items = [...state.items];
+  const settings = structuredClone(state.settings);
+  const active = settings.ocrCorners && settings.trimViewer && items.some(item => item.image);
+  if (!active) {
+    $('ocrStatus').textContent = settings.ocrCorners && !settings.trimViewer
+      ? '请先开启“裁掉底部标识 / 点赞”；当前仅使用原有检测。'
+      : settings.ocrCorners ? '增强识别已开启；选择图片后扫描主体四角。'
+        : '增强识别未开启；原有轻量检测照常使用。';
+    $('shareAll').disabled = $('downloadAll').disabled = false;
+    return;
+  }
+  $('shareAll').disabled = $('downloadAll').disabled = true;
+  $('ocrStatus').textContent = '四角增强识别排队中…';
+  const revisions = new Map(items.map(item => [item, item.manualRevision || 0]));
+  const isCurrent = () => generation === state.generation;
+  const status = message => { if (isCurrent()) $('ocrStatus').textContent = message; };
+  state.pending = state.pending.catch(() => {}).then(async () => {
+    if (!isCurrent()) return;
+    let engine;
+    try {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!isCurrent()) break;
+        if (!item.image || !item.photo || !CornerDetector.corners(item.photo).length) continue;
+        const key = JSON.stringify(item.photo);
+        let scan = item.ocrCache?.key === key ? item.ocrCache.scan : null;
+        if (!scan) {
+          engine ||= await CornerOCR.create(status);
+          if (!isCurrent()) break;
+          scan = await engine.scan(item.image, item.photo, corner => status(`正在识别第 ${i + 1}/${items.length} 张 · ${ { 'top-left': '左上角', 'top-right': '右上角', 'bottom-left': '左下角', 'bottom-right': '右下角' }[corner] }…`));
+          item.ocrCache = { key, scan };
+        }
+        if (!isCurrent()) break;
+        // 已有全 logo 精确模板优先，OCR 不用更宽的估计框覆盖它。
+        const precise = (item.viewer?.marks || []).filter(mark => mark.kind !== 'heart');
+        const scaleX = item.image.naturalWidth / Math.max(1, Math.round(item.image.naturalWidth * Math.min(1, 1000 / Math.max(item.image.naturalWidth, item.image.naturalHeight))));
+        const scaleY = item.image.naturalHeight / Math.max(1, Math.round(item.image.naturalHeight * Math.min(1, 1000 / Math.max(item.image.naturalWidth, item.image.naturalHeight))));
+        const marks = scan.marks.filter(mark => !precise.some(known => known.kind === mark.kind
+          && Math.abs(mark.y - known.y * scaleY) < Math.max(mark.height, known.height * scaleY) * 2
+          && Math.abs(mark.x - known.x * scaleX) < Math.max(mark.width, known.width * scaleX) * 2));
+        item.ocrMarks = marks;
+        if ((item.manualRevision || 0) === revisions.get(item)) {
+          item.detected = CornerDetector.merge(item.detected, marks, { width: item.image.naturalWidth, height: item.image.naturalHeight }, settings.sides);
+          item.values = applyPadding(item.detected);
+          renderCard(item);
+        }
+      }
+      status('四角增强识别完成；未确认的标识保留，可手动微调。组件已缓存，可离线使用。');
+    } catch (error) {
+      status(`增强识别未完成：${error.message || '请重试'}。保留原有检测结果。`);
+    } finally {
+      if (engine) await engine.dispose().catch(() => {});
+      if (isCurrent()) $('shareAll').disabled = $('downloadAll').disabled = false;
+    }
+  });
 }
 
 function cropImage(item, values) {
@@ -448,7 +543,6 @@ function renderEmpty() {
 
 function renderCard(item) {
   const old = document.querySelector(`[data-item-id="${item.id}"]`);
-  if (old) old.remove();
   const card = document.createElement("article");
   card.className = "result-card";
   card.dataset.itemId = item.id;
@@ -472,7 +566,7 @@ function renderCard(item) {
     </div>
     ${item.error ? `<p class="error">${escapeHtml(item.error)}</p>` : `
       <p class="actual-crop">实际裁剪：上 ${values.top}px · 下 ${values.bottom}px · 左 ${values.left}px · 右 ${values.right}px</p>
-      ${item.viewer ? `<p class="viewer-note">已识别${item.viewer.elong ? "艺龙文字与 logo" : item.viewer.marks?.some(mark => mark.kind === "amap") ? "高德地图文字与 logo" : "照片底栏"}${item.viewer.like ? "及点赞爱心" : ""}${item.viewer.overlay ? "（含标识覆盖的底部窄条）" : ""}。</p>` : ""}
+      ${viewerNote(item) ? `<p class="viewer-note">${escapeHtml(viewerNote(item))}</p>` : ""}
       <div class="preview-grid">
         <div class="preview-block"><span>原图</span><canvas class="preview-canvas" width="1" height="1"></canvas></div>
         <div class="preview-block"><span>裁剪结果</span><img class="result-image" alt="裁剪结果" /></div>
@@ -489,7 +583,8 @@ function renderCard(item) {
         <button class="primary-button" data-action="share" type="button">分享 / 存入照片</button>
       </div>
     `}`;
-  results.appendChild(card);
+  if (old) old.replaceWith(card);
+  else results.appendChild(card);
 
   if (item.error) return;
   const originalCanvas = card.querySelector(".preview-canvas");
@@ -503,6 +598,7 @@ function renderCard(item) {
   card.querySelectorAll("[data-side-input]").forEach((input) => {
     input.addEventListener("change", () => {
       item.values[input.dataset.sideInput] = clamp(Number(input.value) || 0, 0, 100000);
+      item.manualRevision = (item.manualRevision || 0) + 1;
       renderCard(item);
     });
   });
@@ -542,6 +638,8 @@ function createItem(file, index) {
 async function loadFiles(fileList) {
   const files = [...fileList].filter((file) => file.type.startsWith("image/"));
   if (!files.length) return;
+  const importGeneration = ++state.importGeneration;
+  state.generation++;
   $("status").textContent = `正在读取 ${files.length} 张图片…`;
   const loaded = [];
   for (let index = 0; index < files.length; index += 1) {
@@ -551,6 +649,7 @@ async function loadFiles(fileList) {
       loaded.push({ id: `${Date.now()}-${index}`, file: files[index], error: error.message });
     }
   }
+  if (importGeneration !== state.importGeneration) return;
   // 先把当前滑块值读进来，否则新导入的图会用上一次的旧参数分析。
   readSettings();
   state.items = loaded.map((item) => {
@@ -558,11 +657,13 @@ async function loadFiles(fileList) {
     const analysis = analyzeImage(item.image);
     item.detected = analysis.detected;
     item.viewer = analysis.viewer;
+    item.photo = analysis.photo;
     item.values = applyPadding(analysis.detected);
     return item;
   });
   $("status").textContent = `已读取 ${state.items.length} 张图片；每一条边独立判断。`;
   renderAll();
+  scheduleCornerScan();
 }
 
 function reanalyzeAll() {
@@ -572,17 +673,24 @@ function reanalyzeAll() {
     const analysis = analyzeImage(item.image);
     item.detected = analysis.detected;
     item.viewer = analysis.viewer;
+    item.photo = analysis.photo;
+    item.ocrMarks = [];
     item.values = applyPadding(analysis.detected);
   });
   renderAll();
   if (state.items.length) {
     $("status").textContent = `已应用当前参数：边界微调 ${state.settings.padding} px；请查看实际裁剪量和输出尺寸。`;
   }
+  scheduleCornerScan();
 }
 
-function getOutputBlob(item) {
+async function getOutputBlob(item) {
   // 保存前把还没提交的滑块输入应用掉，避免导出的图与界面显示不一致。
   applyChangedSettings();
+  if (state.settings.ocrCorners && state.settings.trimViewer) {
+    let pending;
+    do { pending = state.pending; await pending; } while (pending !== state.pending);
+  }
   item.rendered = cropImage(item, item.values);
   return new Promise((resolve) => {
     item.rendered.canvas.toBlob(resolve, outputType(item), outputType(item) === "image/jpeg" ? 0.96 : undefined);
@@ -687,6 +795,7 @@ Object.values(controls).forEach((control) => {
 });
 document.querySelectorAll(".side-toggle").forEach((control) => control.addEventListener("change", applyChangedSettings));
 $("trimViewer")?.addEventListener("change", applyChangedSettings);
+$("ocrCorners")?.addEventListener("change", applyChangedSettings);
 $("fileInput").addEventListener("change", (event) => loadFiles(event.target.files));
 $("reanalyze").addEventListener("click", reanalyzeAll);
 $("resetSettings").addEventListener("click", resetSettings);

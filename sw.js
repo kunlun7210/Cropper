@@ -1,6 +1,7 @@
-const CACHE_NAME = "screenshot-trimmer-v22";
+const CACHE_NAME = "screenshot-trimmer-v23";
+const OCR_CACHE = "cropper-ocr-v1";
 const ASSETS = [
-  "./", "./index.html", "./styles.css", "./viewer-marks.js", "./viewer-detector.js", "./app.js", "./manifest.json",
+  "./", "./index.html", "./styles.css", "./viewer-marks.js", "./viewer-detector.js", "./corner-detector.js", "./corner-ocr.js", "./app.js", "./manifest.json",
   "./icons/favicon-cai-v1.ico", "./icons/icon-cai-v1.svg",
   "./icons/icon-cai-v1-16.png", "./icons/icon-cai-v1-32.png", "./icons/icon-cai-v1-48.png",
   "./icons/icon-cai-v1-180.png", "./icons/icon-cai-v1-192.png", "./icons/icon-cai-v1-512.png",
@@ -20,6 +21,17 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || new URL(event.request.url).origin !== self.location.origin) return;
+  const ocrPath = new URL("ocr/", self.registration.scope).pathname;
+  if (new URL(event.request.url).pathname.startsWith(ocrPath)) {
+    // 大模型及版本化运行组件只在启用时请求，缓存命中不再后台下载。
+    event.respondWith(caches.open(OCR_CACHE).then(async cache => {
+      const cached = await cache.match(event.request, { ignoreVary: true });
+      if (cached) return cached;
+      // 校验并写入由页面的增强加载器负责，避免把半次下载当成完成。
+      return fetch(event.request);
+    }));
+    return;
+  }
 
   const refresh = fetch(event.request).then((response) => {
     if (!response.ok) return response;

@@ -52,7 +52,7 @@ async function main() {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
-  assert.equal(await page.locator('.badge').innerText(), 'v1.5 · 2026.10.05');
+  assert.equal(await page.locator('.badge').innerText(), 'v1.6 · 2026.10.06');
   const versionStyle = await page.locator('.badge').evaluate(el => {
     const css = getComputedStyle(el);
     return { border: css.borderTopWidth, background: css.backgroundColor };

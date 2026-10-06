@@ -91,15 +91,15 @@ h2 { margin-bottom: 5px; font-size: 20px; }
 .file-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .file-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #236cb7; font-size: 27px; }
 .file-picker strong, .file-picker small { display: block; }
-.file-picker small, .setting small { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.file-picker small, .setting small { margin-top: 5px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .status { margin: 10px 4px 1px; color: var(--muted); font-size: 13px; }
 
-.settings-summary { display: flex; justify-content: space-between; gap: 12px; align-items: center; border-radius: 12px; cursor: pointer; list-style: none; }
+.settings-summary { display: flex; justify-content: space-between; gap: 12px; align-items: center; min-height: 44px; border-radius: 12px; cursor: pointer; list-style: none; }
 .settings-summary::-webkit-details-marker { display: none; }
 .settings-summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 5px; }
 /* 折叠态现在只有标题，标题自带的下外边距会让这一栏偏高，去掉 */
 .settings-summary h2 { margin-bottom: 0; }
-.settings-toggle { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-width: 104px; justify-content: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--blue); font-size: 13px; font-weight: 700; }
+.settings-toggle { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; min-width: 104px; min-height: 44px; justify-content: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); color: var(--blue); font-size: 14px; font-weight: 700; }
 .settings-toggle-close { display: none; }
 .settings-chevron { font-size: 17px; line-height: 1; transition: transform .2s ease; }
 .settings-panel[open] .settings-toggle-open { display: none; }
@@ -107,15 +107,15 @@ h2 { margin-bottom: 5px; font-size: 20px; }
 .settings-panel[open] .settings-chevron { transform: rotate(180deg); }
 .settings-body { margin-top: 17px; padding-top: 17px; border-top: 1px solid var(--line); }
 .settings-actions { display: flex; justify-content: flex-end; margin-bottom: 14px; }
-.text-button { padding: 4px 0; border: 0; background: none; color: var(--blue); font-size: 13px; }
+.text-button { min-height: 44px; padding: 8px 4px; border: 0; background: none; color: var(--blue); font-size: 14px; }
 .settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; }
 .setting { display: block; }
-.setting > span { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
-output { color: var(--blue); font-variant-numeric: tabular-nums; }
-input[type="range"] { width: 100%; accent-color: var(--blue); }
+.setting > span { display: flex; justify-content: space-between; gap: 8px; font-size: 16px; }
+output { color: var(--blue); font-weight: 600; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; min-height: 44px; margin: 4px 0 0; accent-color: var(--blue); }
 
 .side-options { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-.side-options label { color: var(--text); }
+.side-options label { display: inline-flex; align-items: center; min-height: 44px; gap: 4px; color: var(--text); font-size: 14px; }
 .side-label { margin-right: 2px; color: var(--muted); }
 .side-options input { accent-color: var(--blue); }
 
@@ -126,9 +126,9 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
   color: white;
   font-weight: 700;
 }
-.primary-button { background: #147fe1; }
+.primary-button { background: #096bbf; }
 .primary-button:disabled, .secondary-button:disabled { opacity: .5; cursor: default; }
-.primary-button.small { margin-left: auto; padding: 8px 12px; font-size: 13px; }
+.primary-button.small { margin-left: auto; min-height: 44px; padding: 8px 12px; font-size: 14px; }
 .secondary-button { border: 1px solid var(--line); background: var(--panel-2); }
 
 .results { display: grid; gap: 16px; }
@@ -145,8 +145,8 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
 .detected { color: var(--green) !important; text-align: right; }
 .actual-crop { margin: 12px 18px 0; color: var(--blue); font-size: 12px; line-height: 1.5; }
 .viewer-note { margin: 8px 18px 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-.viewer-option { display: block; margin-top: 18px; font-size: 14px; line-height: 1.6; }
-.viewer-option small { display: block; margin-top: 6px; color: var(--muted); }
+.viewer-option { display: block; min-height: 44px; margin-top: 18px; font-size: 16px; line-height: 1.6; }
+.viewer-option small { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .batch-actions[hidden] { display: none; }
 .preview-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 14px 18px; }
 .preview-block { min-width: 0; }
@@ -175,12 +175,12 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
    保证极宽的全景图不会被纵向拉伸变形。 */
 
 .fine-tune { padding: 0 18px 15px; }
-.fine-tune summary { cursor: pointer; color: var(--blue); font-size: 13px; }
+.fine-tune summary { min-height: 44px; padding: 12px 0; cursor: pointer; color: var(--blue); font-size: 13px; }
 .crop-inputs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 13px; }
-.crop-inputs label { color: var(--muted); font-size: 11px; }
-.crop-inputs input { width: 100%; margin-top: 5px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0a111e; color: var(--text); }
+.crop-inputs label { color: var(--muted); font-size: 13px; }
+.crop-inputs input { width: 100%; min-height: 44px; margin-top: 5px; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #0a111e; color: var(--text); font-size: 16px; }
 .card-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; padding: 0 18px 17px; }
-.card-actions button { padding: 9px 12px; font-size: 13px; }
+.card-actions button { min-height: 44px; padding: 9px 12px; font-size: 13px; }
 .error { padding: 12px 18px; color: var(--danger); font-size: 13px; }
 
 .footer-note { margin: 20px 3px 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
@@ -196,3 +196,4 @@ input[type="range"] { width: 100%; accent-color: var(--blue); }
   .result-head { padding-left: 14px; padding-right: 14px; }
   .preview-grid, .fine-tune, .card-actions { padding-left: 14px; padding-right: 14px; }
 }
+.ocr-status { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 8px 0 16px; }

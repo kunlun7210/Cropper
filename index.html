@@ -35,7 +35,7 @@
           <h1>四边扫描去黑边</h1>
           <p class="intro">独立裁剪四边黑边，一并识别照片底栏、标识与点赞。</p>
         </div>
-        <div class="badge">v1.5 · 2026.10.05</div>
+        <div class="badge">v1.6 · 2026.10.06</div>
       </header>
 
       <section class="panel import-panel">
@@ -93,6 +93,12 @@
             <small>包含高德地图、艺龙文字及旁边 logo，也识别独立爱心。覆盖在照片上时裁掉所在的底部窄条。关闭后保留原有检测。</small>
           </label>
 
+          <label class="viewer-option">
+            <input id="ocrCorners" type="checkbox" /> 四角增强识别（OCR）
+            <small>可选：只扫描主体四角，支持高德、百度、腾讯地图，以及美团、大众点评、携程、艺龙、同程、飞猪、去哪儿、淘宝。文字识别后辅助校验旁边 logo。首次需联网下载约 80 MB；缓存后本地处理，不上传图片。</small>
+          </label>
+          <p id="ocrStatus" class="ocr-status" role="status">增强识别未开启；原有轻量检测照常使用。</p>
+
           <div class="side-options">
             <span class="side-label">检测方向</span>
             <label><input class="side-toggle" data-side="top" type="checkbox" checked /> 上</label>
@@ -130,6 +136,8 @@
     </main>
     <script src="viewer-marks.js"></script>
     <script src="viewer-detector.js"></script>
+    <script src="corner-detector.js"></script>
+    <script src="corner-ocr.js"></script>
     <script src="app.js"></script>
   </body>
 </html>

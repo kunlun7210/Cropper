@@ -149,7 +149,7 @@ test('cached startup still returns before a slow background fetch', async () => 
   const handlers = {}, cached = { cached: true };
   vm.runInNewContext(worker, {
     URL,
-    self: { location: { origin: 'https://kunlun7210.github.io' }, addEventListener: (name, fn) => handlers[name] = fn },
+    self: { location: { origin: 'https://kunlun7210.github.io' }, registration: { scope: 'https://kunlun7210.github.io/Cropper/' }, addEventListener: (name, fn) => handlers[name] = fn },
     fetch: () => new Promise(() => {}),
     caches: { match: async () => cached }
   });

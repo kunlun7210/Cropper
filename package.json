@@ -1,17 +1,24 @@
 {
   "name": "cropper-trim-black-border",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "private": true,
   "description": "四边扫描去黑边：完全在浏览器本地运行的截图裁剪 PWA",
   "scripts": {
     "serve": "python3 -m http.server 8788 --bind 127.0.0.1",
-    "test": "node --test tests/icons.test.mjs",
+    "test": "node --test tests/icons.test.mjs tests/corners.test.cjs",
+    "build:ocr": "node scripts/build-ocr.mjs",
+    "test:ocr": "node tests/ocr-browser.cjs",
     "test:browser": "node tests/browser-check.cjs",
     "test:samples": "node tests/chrome-check.cjs",
     "test:viewer": "node tests/viewer-samples.cjs"
   },
+  "dependencies": {
+    "@paddleocr/paddleocr-js": "0.4.2",
+    "onnxruntime-web": "1.26.0"
+  },
   "devDependencies": {
     "playwright": "^1.63.0",
-    "sharp": "^0.35.4"
+    "sharp": "^0.35.4",
+    "vite": "8.3.0"
   }
 }

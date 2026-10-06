@@ -43,7 +43,7 @@
     "0100000000000111000000011000000111110000",
   ];
 
-  function analyze(profile) {
+  function analyze(profile, layoutOnly = false) {
     const { width: w, height: h, pixels } = profile;
     if (!pixels || w < 180 || h / w < 1.35 || h / w > 2.8) return null;
     const white = new Uint8Array(w * h);
@@ -115,6 +115,7 @@
     // position in the lower portion. Its interior/background also must match.
     const visited = new Uint8Array(w * h);
     let heart = null;
+    const hearts = [];
     for (let y = Math.floor(h * 0.55); y < h * 0.93; y++) for (let x = Math.floor(w * 0.77); x < w * 0.98; x++) {
       const start = y * w + x;
       if (!white[start] || visited[start]) continue;
@@ -136,7 +137,10 @@
       if (box.width < w * 0.025 || box.width > w * 0.075 || box.height < w * 0.022 || box.height > w * 0.075) continue;
       if (box.width / box.height < 0.95 || box.width / box.height > 1.35) continue;
       const score = similarity(box, HEART);
-      if (score.ink >= 0.80 && score.blank >= 0.90 && (!heart || box.y > heart.y)) heart = box;
+      if (score.ink >= 0.80 && score.blank >= 0.90) {
+        hearts.push(box);
+        if (!heart || box.y > heart.y) heart = box;
+      }
     }
 
     // Author rows are short white text on a predominantly black footer.
@@ -170,11 +174,12 @@
     const marks = typeof ViewerMarks !== "undefined" && bandEnd > 0
       ? ViewerMarks.find(profile, bandEnd, HEART) : [];
     const scannedHeart = marks.find(mark => mark.kind === "heart");
+    hearts.push(...marks.filter(mark => mark.kind === "heart"));
     if (!heart && scannedHeart) heart = scannedHeart;
-    if (!heart && !amap && !marks.length) return null;
+    if (!heart && !amap && !marks.length && !layoutOnly) return null;
     const exclusions = authorBands.filter((band) => amap === band || (heart && band.y > heart.y + heart.height))
       .map((band) => ({ x0: w * 0.015, x1: w * 0.74, y0: band.y - w * 0.045, y1: band.y + band.height + w * 0.045 }));
-    if (heart) exclusions.push({ x0: heart.x - w * 0.008, x1: w, y0: heart.y - w * 0.01, y1: heart.y + heart.height + w * 0.01 });
+    for (const candidate of hearts) exclusions.push({ x0: candidate.x - w * 0.008, x1: w, y0: candidate.y - w * 0.01, y1: candidate.y + candidate.height + w * 0.01 });
     let photoEnd = h;
     for (let y = h - 1; y > Math.max(gapEnd + h * 0.18, h * 0.5); y--) {
       // Older viewer footers can include a publish date, description and
@@ -198,6 +203,10 @@
     // small glyph-sized safety gap. If it sits in black padding, lose no photo.
     const overlay = heart && heart.y < photoEnd && heart.y > photoEnd - w * 0.30;
     let bottom = overlay ? Math.min(photoEnd, heart.y - Math.max(2, Math.round(heart.height * 0.40))) : photoEnd;
+    // Every confirmed heart participates, including an in-photo heart when
+    // another one is lower in the black footer. Footer hearts cost no photo.
+    for (const candidate of hearts.filter(candidate => candidate.y < photoEnd && candidate.y > photoEnd - w * 0.30))
+      bottom = Math.min(bottom, candidate.y - Math.max(2, Math.round(candidate.height * 0.40)));
     for (const mark of marks.filter(mark => mark.kind !== "heart"))
       bottom = Math.min(bottom, mark.y - Math.max(2, Math.ceil(w * 0.006)));
     // A visible author row and its taller avatar can themselves overlay the
@@ -208,8 +217,9 @@
     }
     return { top: gapEnd, bottom: h - bottom, like: Boolean(heart),
       amap: Boolean(amap || marks.some(mark => mark.kind === "amap")),
-      elong: marks.some(mark => mark.kind === "elong"), overlay: Boolean(overlay || bottom < photoEnd), touchingToolbar, marks };
+      elong: marks.some(mark => mark.kind === "elong"), overlay: Boolean(overlay || bottom < photoEnd), touchingToolbar, marks,
+      photo: { top: gapEnd, bottom: photoEnd, left: 0, right: w } };
   }
-  scope.ViewerDetector = { analyze };
+  scope.ViewerDetector = { analyze, locate: profile => analyze(profile, true) };
   if (typeof module !== "undefined" && module.exports) module.exports = scope.ViewerDetector;
 })(typeof window !== "undefined" ? window : globalThis);

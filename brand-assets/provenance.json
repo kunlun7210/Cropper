@@ -1,0 +1,170 @@
+{
+  "date": "2026-10-06",
+  "brands": [
+    {
+      "id": "amap",
+      "name": "高德地图",
+      "page": "https://mobile.amap.com/",
+      "asset": "embedded:headerLogo",
+      "originalWidth": 244,
+      "originalHeight": 80,
+      "sha256": "6a3f2310bb5007bd3eab6f6c45d0b98084d3acc1e246aa0d3114ce650bde5da3",
+      "foreground": {
+        "left": 0,
+        "top": 11,
+        "right": 244,
+        "bottom": 68
+      }
+    },
+    {
+      "id": "baidu",
+      "name": "百度地图",
+      "page": "https://map.baidu.com/",
+      "asset": "https://map.baidu.com/wolfman/static/common/images/new/newlogo-white_4c4cac1.png",
+      "originalWidth": 174,
+      "originalHeight": 56,
+      "sha256": "d45ab02df41d5dd2c7674d4a7da36980923ef71f7e65c9565a054e6964eab75d",
+      "foreground": {
+        "left": 0,
+        "top": 0,
+        "right": 174,
+        "bottom": 56
+      }
+    },
+    {
+      "id": "tencent",
+      "name": "腾讯地图",
+      "page": "https://map.qq.com/",
+      "asset": "https://5gimg.map.qq.com/mappc/public_static/themes/default/img/logo/logo_x1_small.png",
+      "originalWidth": 400,
+      "originalHeight": 90,
+      "sha256": "5aeec8d19dc7f30030ff54f6085adc2ae01a40c48c3757909c2b61574056c5ef",
+      "foreground": {
+        "left": 0,
+        "top": 0,
+        "right": 348,
+        "bottom": 90
+      }
+    },
+    {
+      "id": "meituan",
+      "name": "美团",
+      "page": "https://www.meituan.com/media",
+      "asset": "https://p0.meituan.net/smartvenus/cbc3b73b31cd4763ceee5c6ad74dca7434506.jpg",
+      "originalWidth": 579,
+      "originalHeight": 325,
+      "sha256": "f9fcf00523c92d5c90ae4e041ce4187d24d86f930de82be2e206f8e04662fd28",
+      "foreground": {
+        "left": 90,
+        "top": 89,
+        "right": 489,
+        "bottom": 236
+      }
+    },
+    {
+      "id": "dianping",
+      "name": "大众点评",
+      "page": "https://www.meituan.com/media",
+      "asset": "https://p0.meituan.net/smartvenus/bc00a2c64bb648726fd1da83a9b2bb9313488.png",
+      "originalWidth": 578,
+      "originalHeight": 325,
+      "sha256": "aa8ba9865a9bf08fcc5f7b78d57bb1d1e58b0c0cde3b84a1181572c7d81706b1",
+      "foreground": {
+        "left": 13,
+        "top": 97,
+        "right": 566,
+        "bottom": 228
+      }
+    },
+    {
+      "id": "ctrip",
+      "name": "携程",
+      "page": "https://www.ctrip.com/",
+      "asset": "https://bd-s.tripcdn.cn/modules/nfes/pc-home/logo.dea30d575d812c738b4683ba80f3ff84.png",
+      "originalWidth": 388,
+      "originalHeight": 64,
+      "sha256": "7b282ee919dc3992315f477c4356c4caffdd4175b7274ea649953af45a4d6c52",
+      "foreground": {
+        "left": 0,
+        "top": 0,
+        "right": 387,
+        "bottom": 64
+      }
+    },
+    {
+      "id": "elong",
+      "name": "艺龙",
+      "page": "https://www.elong.com/",
+      "asset": "https://pavo.elongstatic.com/i/ori/1i8HMZ04KqY.jpg",
+      "originalWidth": 389,
+      "originalHeight": 78,
+      "sha256": "e0e0bdc53f0fdb62d09f301afb45fec39dace9291772a675d6a3948a9cfb77f1",
+      "foreground": {
+        "left": 0,
+        "top": 0,
+        "right": 368,
+        "bottom": 78
+      }
+    },
+    {
+      "id": "tongcheng",
+      "name": "同程",
+      "page": "https://www.ly.com/",
+      "asset": "https://file.40017.cn/tcweb/pc/home/img/logo.png",
+      "originalWidth": 718,
+      "originalHeight": 117,
+      "sha256": "819bf4a2d38c7d9399979d60a385cc74fa64c6876078afc0d68ae82d83b39662",
+      "foreground": {
+        "left": 0,
+        "top": 0,
+        "right": 718,
+        "bottom": 117
+      }
+    },
+    {
+      "id": "fliggy",
+      "name": "飞猪",
+      "page": "https://www.fliggy.com/service/schedule.php",
+      "asset": "https://img.alicdn.com/tps/TB1C9LqOVXXXXcuaXXXXXXXXXXX-154-53.png",
+      "originalWidth": 154,
+      "originalHeight": 53,
+      "sha256": "a67237f7ce5d2ed47f54b2c2cf8e2ea02c1a2a660b01c55afc8d5a8470a79905",
+      "foreground": {
+        "left": 1,
+        "top": 0,
+        "right": 124,
+        "bottom": 53
+      }
+    },
+    {
+      "id": "qunar",
+      "name": "去哪儿",
+      "page": "https://www.qunar.com/",
+      "asset": "https://qimgs.qunarzz.com/wpf_newmpic_001/54f70ce8dd89589d3fd2289dcc25b7d8.jpg",
+      "originalWidth": 390,
+      "originalHeight": 88,
+      "sha256": "f394185d7f71901ef47a3694a6270564f665a8abb2b21a9de1702e6a5ed4aaf4",
+      "foreground": {
+        "left": 0,
+        "top": 3,
+        "right": 388,
+        "bottom": 85
+      }
+    },
+    {
+      "id": "taobao",
+      "name": "淘宝",
+      "page": "https://www.taobao.com/",
+      "asset": "https://img.alicdn.com/imgextra/i1/O1CN011YZ3P01zMCE6HGyhk_!!6000000006699-2-tps-480-144.png",
+      "originalWidth": 480,
+      "originalHeight": 144,
+      "sha256": "d2508efca1b47ee895a0519ed7b61a11fa4cc4b7ae9407513eb706661c1ec13f",
+      "foreground": {
+        "left": 137,
+        "top": 8,
+        "right": 343,
+        "bottom": 120
+      }
+    }
+  ]
+}

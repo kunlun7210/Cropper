@@ -1,0 +1,17 @@
+{
+  "retrieved": "2026-10-06",
+  "purpose": "Small on-device brand-identification references, not UI branding or affiliation. Actual photo-watermark variants may differ.",
+  "brands": [
+    { "id": "amap", "name": "高德地图", "page": "https://mobile.amap.com/", "asset": "embedded:headerLogo" },
+    { "id": "baidu", "name": "百度地图", "page": "https://map.baidu.com/", "asset": "https://map.baidu.com/wolfman/static/common/images/new/newlogo-white_4c4cac1.png" },
+    { "id": "tencent", "name": "腾讯地图", "page": "https://map.qq.com/", "asset": "https://5gimg.map.qq.com/mappc/public_static/themes/default/img/logo/logo_x1_small.png" },
+    { "id": "meituan", "name": "美团", "page": "https://www.meituan.com/media", "asset": "https://p0.meituan.net/smartvenus/cbc3b73b31cd4763ceee5c6ad74dca7434506.jpg" },
+    { "id": "dianping", "name": "大众点评", "page": "https://www.meituan.com/media", "asset": "https://p0.meituan.net/smartvenus/bc00a2c64bb648726fd1da83a9b2bb9313488.png" },
+    { "id": "ctrip", "name": "携程", "page": "https://www.ctrip.com/", "asset": "https://bd-s.tripcdn.cn/modules/nfes/pc-home/logo.dea30d575d812c738b4683ba80f3ff84.png" },
+    { "id": "elong", "name": "艺龙", "page": "https://www.elong.com/", "asset": "https://pavo.elongstatic.com/i/ori/1i8HMZ04KqY.jpg" },
+    { "id": "tongcheng", "name": "同程", "page": "https://www.ly.com/", "asset": "https://file.40017.cn/tcweb/pc/home/img/logo.png" },
+    { "id": "fliggy", "name": "飞猪", "page": "https://www.fliggy.com/service/schedule.php", "asset": "https://img.alicdn.com/tps/TB1C9LqOVXXXXcuaXXXXXXXXXXX-154-53.png" },
+    { "id": "qunar", "name": "去哪儿", "page": "https://www.qunar.com/", "asset": "https://qimgs.qunarzz.com/wpf_newmpic_001/54f70ce8dd89589d3fd2289dcc25b7d8.jpg" },
+    { "id": "taobao", "name": "淘宝", "page": "https://www.taobao.com/", "asset": "https://img.alicdn.com/imgextra/i1/O1CN011YZ3P01zMCE6HGyhk_!!6000000006699-2-tps-480-144.png" }
+  ]
+}
