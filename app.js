@@ -773,7 +773,7 @@ async function shareItem(item) {
   const file = new File([blob], outputName(item), { type: outputType(item) });
   if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
-      await navigator.share({ title: "四边扫描去黑边", files: [file] });
+      await navigator.share({ title: "截图智能裁剪", files: [file] });
       return;
     } catch (error) {
       if (error.name === "AbortError") return;
@@ -829,7 +829,7 @@ async function shareAllItems() {
     }
     if (canShareFiles) {
       try {
-        await navigator.share({ title: `四边扫描去黑边（${files.length}张）`, files });
+        await navigator.share({ title: `截图智能裁剪（${files.length}张）`, files });
         $("status").textContent = "已打开系统分享面板；请选择“存储图像”保存到相册。";
       } catch (error) {
         if (error.name === "AbortError") return;

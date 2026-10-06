@@ -53,7 +53,10 @@ async function main() {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
-  assert.equal(await page.locator('.badge').innerText(), 'v1.7 · 2026.10.06');
+  assert.equal(await page.locator('.badge').innerText(), 'v1.7.1 · 2026.10.06');
+  assert.equal(await page.title(), '截图智能裁剪');
+  assert.equal(await page.locator('.hero h1').innerText(), '截图智能裁剪');
+  assert.equal(await page.locator('.intro').innerText(), '识别照片主体，裁掉多余留白、界面栏与角落标识。');
   const versionStyle = await page.locator('.badge').evaluate(el => {
     const css = getComputedStyle(el);
     return { border: css.borderTopWidth, background: css.backgroundColor };
@@ -194,7 +197,19 @@ async function main() {
   console.log('PASS 关闭左右检测方向后对应边不再裁剪');
 
   // --- 多尺寸布局不出横向滚动 ---
-  for (const viewport of [{ width: 402, height: 874 }, { width: 874, height: 402 }, { width: 1200, height: 900 }]) {
+  const shares = await page.evaluate(async () => {
+    const captured = [], keys = ['share', 'canShare'];
+    const descriptors = keys.map(key => Object.getOwnPropertyDescriptor(navigator, key));
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: data => Boolean(data.files?.length) });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async data => captured.push({ title: data.title, count: data.files.length }) });
+    try { await shareItem(state.items[0]); await shareAllItems(); }
+    finally { keys.forEach((key, i) => descriptors[i] ? Object.defineProperty(navigator, key, descriptors[i]) : delete navigator[key]); }
+    return captured;
+  });
+  assert.deepEqual(shares, [{ title: '截图智能裁剪', count: 1 }, { title: '截图智能裁剪（1张）', count: 1 }]);
+  console.log('PASS 单张和批量系统分享标题统一为新名称（测试替身，不发送文件）');
+
+  for (const viewport of [{ width: 320, height: 850 }, { width: 393, height: 852 }, { width: 402, height: 874 }, { width: 440, height: 956 }, { width: 874, height: 402 }, { width: 1200, height: 900 }]) {
     await page.setViewportSize(viewport);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
   }

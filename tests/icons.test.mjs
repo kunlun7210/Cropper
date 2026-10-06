@@ -87,16 +87,35 @@ test('bookmark, Apple, PWA and preview references all use cai-v1 assets', () => 
   assert.match(html, /rel="apple-touch-icon" sizes="180x180" href="icons\/icon-cai-v1-180.png"/);
   assert.match(html, /rel="icon"[^>]+favicon-cai-v1.ico/);
   assert.match(html, /rel="icon"[^>]+icon-cai-v1.svg/);
-  assert.match(html, /rel="manifest" href="manifest.json\?v=cai-v1"/);
+  const manifestHref = html.match(/rel="manifest" href="([^"]+)"/)[1];
+  assert.equal(new URL(manifestHref, 'https://example.test/').searchParams.get('v'), JSON.parse(read('package.json')).version);
   assert.match(html, /property="og:image" content="https:\/\/kunlun7210.github.io\/Cropper\/icons\/icon-cai-v1-512.png"/);
   assert.match(html, /name="twitter:image" content="https:\/\/kunlun7210.github.io\/Cropper\/icons\/icon-cai-v1-512.png"/);
   assert.deepEqual(manifest.icons.map(icon => icon.src), [iconPath(180), iconPath(192), iconPath(512)]);
   for (const icon of manifest.icons) assert.equal(icon.purpose, icon.sizes === '180x180' ? 'any' : 'any maskable');
   assert.equal(manifest.scope, './');
-  assert.match(html, /name="apple-mobile-web-app-title" content="截图去黑边"/);
+  assert.match(html, /name="apple-mobile-web-app-title" content="截图智能裁剪"/);
   assert.equal((html.match(/property="og:image" /g) || []).length, 1);
   assert.doesNotMatch(html + JSON.stringify(manifest), /icon-qu|favicon-qu|subflow/);
   for (const icon of manifest.icons) assert.ok(existsSync(new URL(icon.src, root)));
+});
+
+test('project name and subtitle agree across page, installation, preview, sharing and README', () => {
+  const name = '截图智能裁剪', subtitle = '识别照片主体，裁掉多余留白、界面栏与角落标识。';
+  assert.ok(html.includes(`<title>${name}</title>`));
+  assert.ok(html.includes(`<h1>${name}</h1>`));
+  assert.ok(html.includes(`<p class="intro">${subtitle}</p>`));
+  for (const [attribute, field, content] of [
+    ['name', 'apple-mobile-web-app-title', name], ['name', 'description', subtitle],
+    ['property', 'og:title', name], ['property', 'og:description', subtitle],
+    ['name', 'twitter:title', name], ['name', 'twitter:description', subtitle],
+  ]) assert.ok(html.includes(`<meta ${attribute}="${field}" content="${content}" />`));
+  assert.equal(manifest.name, name); assert.equal(manifest.short_name, name); assert.equal(manifest.description, subtitle);
+  assert.equal(manifest.start_url, './'); assert.equal(manifest.scope, './');
+  assert.ok(app.includes(`title: "${name}"`));
+  assert.ok(app.includes('title: `截图智能裁剪（${files.length}张）`'));
+  assert.ok(read('README.md').toString().startsWith(`# ${name}\n\n${subtitle}\n`));
+  assert.doesNotMatch(html + app + JSON.stringify(manifest), /四边扫描去黑边|截图去黑边/);
 });
 
 test('boundary adjustment ranges from -5 to 30 and defaults to zero', () => {

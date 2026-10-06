@@ -1,8 +1,8 @@
 {
   "name": "cropper-trim-black-border",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
-  "description": "四边扫描去黑边：完全在浏览器本地运行的截图裁剪 PWA",
+  "description": "截图智能裁剪：识别照片主体，裁掉多余留白、界面栏与角落标识。",
   "scripts": {
     "serve": "python3 -m http.server 8788 --bind 127.0.0.1",
     "test": "node --test tests/icons.test.mjs tests/corners.test.cjs tests/frames.test.cjs",
