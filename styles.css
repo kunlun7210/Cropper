@@ -193,6 +193,9 @@ input[type="range"]:focus-visible { outline: 2px solid var(--blue); outline-offs
 .footer-note p { margin-bottom: 7px; }
 
 @media (max-width: 650px) {
+  .hero { position: relative; display: block; }
+  .hero .eyebrow { padding-right: 140px; }
+  .hero .badge { position: absolute; top: 0; right: 0; }
   .settings-grid, .preview-grid { grid-template-columns: 1fr; }
   .preview-canvas, .result-image { max-height: 480px; }
   .crop-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }

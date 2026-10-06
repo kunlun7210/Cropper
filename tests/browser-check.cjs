@@ -212,6 +212,20 @@ async function main() {
   for (const viewport of [{ width: 320, height: 850 }, { width: 393, height: 852 }, { width: 402, height: 874 }, { width: 440, height: 956 }, { width: 874, height: 402 }, { width: 1200, height: 900 }]) {
     await page.setViewportSize(viewport);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.equal(await page.locator('.hero h1').evaluate(el => {
+      const range = document.createRange(); range.selectNodeContents(el);
+      return range.getClientRects().length;
+    }), 1, '新名称在测试宽度中保持完整一行');
+    if (viewport.width <= 650) {
+      const layout = await page.evaluate(() => ({
+        title: document.querySelector('.hero h1').getBoundingClientRect().top,
+        badge: document.querySelector('.badge').getBoundingClientRect().bottom,
+        intro: document.querySelector('.intro').getBoundingClientRect().width,
+        hero: document.querySelector('.hero').getBoundingClientRect().width,
+      }));
+      assert.ok(layout.title >= layout.badge, '版本号不得占用标题行');
+      assert.equal(layout.intro, layout.hero, '手机副标题使用标题区完整宽度');
+    }
   }
   console.log('PASS 手机竖/横屏与桌面宽度均无横向溢出');
 
