@@ -66,6 +66,11 @@ function escapeHtml(value) {
 }
 
 function updateControlLabels() {
+  for (const control of Object.values(controls)) {
+    if (control.type !== 'range') continue;
+    const min = Number(control.min), max = Number(control.max), value = Number(control.value);
+    control.style.setProperty('--range-progress', `${clamp((value - min) / (max - min) * 100, 0, 100)}%`);
+  }
   $("darkThresholdValue").value = controls.darkThreshold.value;
   $("darkThresholdValue").textContent = controls.darkThreshold.value;
   $("coverageValue").textContent = `${controls.coverage.value}%`;
@@ -84,6 +89,7 @@ function readSettings() {
   document.querySelectorAll(".side-toggle").forEach((input) => {
     state.settings.sides[input.dataset.side] = input.checked;
   });
+  updateControlLabels();
 }
 
 // 参数真正变化时才重算，避免同一个值反复触发整批重分析。
@@ -367,6 +373,31 @@ function refineViewerEdge(image, estimate, fromTop) {
   return estimate;
 }
 
+function refineFrameEdge(image, estimate) {
+  // 在原始像素上找 RGB 跳变，不用黑色阈值细化彩色边界。
+  const radius = Math.max(6, Math.ceil(image.naturalHeight / 1000) * 4);
+  const start = clamp(estimate - radius, 1, image.naturalHeight - 2);
+  const end = clamp(estimate + radius, start + 1, image.naturalHeight - 1);
+  const canvas = document.createElement('canvas');
+  canvas.width = image.naturalWidth; canvas.height = end - start + 1;
+  const g = canvas.getContext('2d', { willReadFrequently: true });
+  g.drawImage(image, 0, start - 1, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  const p = g.getImageData(0, 0, canvas.width, canvas.height).data;
+  let best = { y: estimate, score: 0 };
+  for (let y = 1; y < canvas.height; y++) {
+    const differences = [];
+    for (let x = 0; x < canvas.width; x += 2) {
+      let d = 0;
+      for (let c = 0; c < 3; c++) d += Math.abs(p[(y * canvas.width + x) * 4 + c] - p[((y - 1) * canvas.width + x) * 4 + c]) / 3;
+      differences.push(d);
+    }
+    differences.sort((a, b) => a - b);
+    const score = differences[Math.floor(differences.length / 2)] * differences.filter(d => d > 6).length / differences.length;
+    if (score > best.score) best = { y: start + y - 1, score };
+  }
+  return best.score >= 6 ? best.y : estimate;
+}
+
 function analyzeImage(image) {
   const profile = createProfile(image, state.settings);
   const rowMask = borderMask(profile.rows, state.settings);
@@ -393,10 +424,31 @@ function analyzeImage(image) {
     const end = viewer.overlay ? estimate : refineViewerEdge(image, estimate, false);
     detected.bottom = Math.max(detected.bottom, image.naturalHeight - end);
   }
+  // 原有看图布局即使关闭底栏功能也不走新分支，保留其原来的边界/开关语义。
+  const existingLayout = !viewer && state.settings.detectChrome ? ViewerDetector.locate(profile) : null;
+  let frame = state.settings.detectChrome && !viewer && !existingLayout && typeof FrameDetector !== 'undefined'
+    ? FrameDetector.analyze(profile) : null;
+  if (frame) {
+    const top = refineFrameEdge(image, Math.round(frame.photo.top / profile.height * image.naturalHeight));
+    const bottom = refineFrameEdge(image, Math.round(frame.photo.bottom / profile.height * image.naturalHeight));
+    frame.photo = { left: 0, right: image.naturalWidth, top, bottom };
+    frame.marks = state.settings.trimViewer && state.settings.sides.bottom
+      ? ViewerDetector.findMarks(profile, frame.photo.bottom / image.naturalHeight * profile.height) : [];
+    let cropEnd = bottom;
+    for (const mark of frame.marks) {
+      const markTop = (mark.y - Math.max(2, Math.ceil(profile.width * .006))) / profile.height * image.naturalHeight;
+      if (markTop < bottom && markTop > bottom - (bottom - top) * .12) cropEnd = Math.min(cropEnd, Math.floor(markTop));
+    }
+    // 确认的清晰矩形比外围整图近黑剖面更可靠，不在模糊背景里寻找主体。
+    detected.top = state.settings.sides.top ? top : 0;
+    detected.bottom = state.settings.sides.bottom ? image.naturalHeight - cropEnd : 0;
+    detected.left = detected.right = 0;
+  }
   let photo = null;
   if (state.settings.ocrCorners && state.settings.trimViewer) {
-    const layout = viewer || ViewerDetector.locate(profile);
-    if (layout?.photo) {
+    const layout = viewer || existingLayout || ViewerDetector.locate(profile);
+    if (frame) photo = { ...frame.photo };
+    else if (layout?.photo) {
       photo = {
         left: Math.round(layout.photo.left / profile.width * image.naturalWidth),
         right: Math.round(layout.photo.right / profile.width * image.naturalWidth),
@@ -415,16 +467,21 @@ function analyzeImage(image) {
       photo = { left: edges.left, top: edges.top, right: image.naturalWidth - edges.right, bottom: image.naturalHeight - edges.bottom };
     }
   }
-  return { detected, profile, viewer, photo };
+  return { detected, profile, viewer, frame, photo };
 }
 
 function viewerNote(item) {
   const names = [];
+  if (item.frame) names.push('看图界面留白与清晰照片边界');
   if (item.viewer?.elong) names.push('艺龙文字与 logo');
   if (item.viewer?.amap || item.viewer?.marks?.some(mark => mark.kind === 'amap')) names.push('高德地图文字与 logo');
   if (item.viewer?.like) names.push('点赞爱心');
   if (item.viewer && !names.length) names.push('照片底栏');
   for (const mark of item.ocrMarks || []) if (!names.some(name => name.includes(mark.name))) names.push(`${mark.name}角落标识`);
+  for (const mark of item.frame?.marks || []) {
+    const name = { amap: '高德地图文字与 logo', elong: '艺龙文字与 logo', heart: '点赞爱心' }[mark.kind];
+    if (name && !names.includes(name)) names.push(name);
+  }
   return names.length ? `已识别${names.join('、')}。` : '';
 }
 
@@ -465,7 +522,7 @@ function scheduleCornerScan() {
         }
         if (!isCurrent()) break;
         // 已有全 logo 精确模板优先，OCR 不用更宽的估计框覆盖它。
-        const precise = (item.viewer?.marks || []).filter(mark => mark.kind !== 'heart');
+        const precise = (item.viewer?.marks || item.frame?.marks || []).filter(mark => mark.kind !== 'heart');
         const scaleX = item.image.naturalWidth / Math.max(1, Math.round(item.image.naturalWidth * Math.min(1, 1000 / Math.max(item.image.naturalWidth, item.image.naturalHeight))));
         const scaleY = item.image.naturalHeight / Math.max(1, Math.round(item.image.naturalHeight * Math.min(1, 1000 / Math.max(item.image.naturalWidth, item.image.naturalHeight))));
         const marks = scan.marks.filter(mark => !precise.some(known => known.kind === mark.kind
@@ -657,6 +714,7 @@ async function loadFiles(fileList) {
     const analysis = analyzeImage(item.image);
     item.detected = analysis.detected;
     item.viewer = analysis.viewer;
+    item.frame = analysis.frame;
     item.photo = analysis.photo;
     item.values = applyPadding(analysis.detected);
     return item;
@@ -673,6 +731,7 @@ function reanalyzeAll() {
     const analysis = analyzeImage(item.image);
     item.detected = analysis.detected;
     item.viewer = analysis.viewer;
+    item.frame = analysis.frame;
     item.photo = analysis.photo;
     item.ocrMarks = [];
     item.values = applyPadding(analysis.detected);

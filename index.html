@@ -35,7 +35,7 @@
           <h1>四边扫描去黑边</h1>
           <p class="intro">独立裁剪四边黑边，一并识别照片底栏、标识与点赞。</p>
         </div>
-        <div class="badge">v1.6 · 2026.10.06</div>
+        <div class="badge">v1.7 · 2026.10.06</div>
       </header>
 
       <section class="panel import-panel">
@@ -110,7 +110,7 @@
 
           <div class="side-options">
             <span class="side-label">界面栏</span>
-            <label><input id="detectChrome" type="checkbox" checked /> 一并裁掉应用自身的深色状态栏、导航栏与黑留白</label>
+            <label><input id="detectChrome" type="checkbox" checked /> 一并裁掉应用状态栏、导航栏与看图留白（含彩色渐变、模糊背景）</label>
           </div>
         </div>
       </details>
@@ -136,6 +136,7 @@
     </main>
     <script src="viewer-marks.js"></script>
     <script src="viewer-detector.js"></script>
+    <script src="frame-detector.js"></script>
     <script src="corner-detector.js"></script>
     <script src="corner-ocr.js"></script>
     <script src="app.js"></script>

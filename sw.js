@@ -1,7 +1,7 @@
-const CACHE_NAME = "screenshot-trimmer-v23";
+const CACHE_NAME = "screenshot-trimmer-v24";
 const OCR_CACHE = "cropper-ocr-v1";
 const ASSETS = [
-  "./", "./index.html", "./styles.css", "./viewer-marks.js", "./viewer-detector.js", "./corner-detector.js", "./corner-ocr.js", "./app.js", "./manifest.json",
+  "./", "./index.html", "./styles.css", "./viewer-marks.js", "./viewer-detector.js", "./frame-detector.js", "./corner-detector.js", "./corner-ocr.js", "./app.js", "./manifest.json",
   "./icons/favicon-cai-v1.ico", "./icons/icon-cai-v1.svg",
   "./icons/icon-cai-v1-16.png", "./icons/icon-cai-v1-32.png", "./icons/icon-cai-v1-48.png",
   "./icons/icon-cai-v1-180.png", "./icons/icon-cai-v1-192.png", "./icons/icon-cai-v1-512.png",

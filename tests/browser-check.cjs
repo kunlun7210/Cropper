@@ -6,7 +6,8 @@ const fs = require('node:fs/promises');
 const http = require('node:http');
 const path = require('node:path');
 const os = require('node:os');
-const { chromium } = require('playwright');
+const { chromium, webkit } = require('playwright');
+const sharp = require('sharp');
 
 const root = path.resolve(__dirname, '..');
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
@@ -46,13 +47,13 @@ async function main() {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${server.address().port}/`;
 
-  browser = await chromium.launch({ channel: 'chrome', headless: true });
+  browser = process.env.CROPPER_BROWSER === 'webkit' ? await webkit.launch({ headless: true }) : await chromium.launch({ channel: 'chrome', headless: true });
   const context = await browser.newContext({ viewport: { width: 402, height: 874 }, acceptDownloads: true });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
-  assert.equal(await page.locator('.badge').innerText(), 'v1.6 · 2026.10.06');
+  assert.equal(await page.locator('.badge').innerText(), 'v1.7 · 2026.10.06');
   const versionStyle = await page.locator('.badge').evaluate(el => {
     const css = getComputedStyle(el);
     return { border: css.borderTopWidth, background: css.backgroundColor };
@@ -62,6 +63,15 @@ async function main() {
 
   assert.equal(await page.locator('#batchActions').isVisible(), false, '空状态不得显示批量操作条');
   console.log('PASS 空状态隐藏批量操作条（.batch-actions[hidden] 生效）');
+  await page.locator('.settings-panel').evaluate(el => el.open = true);
+  const progress = await page.locator('#darkThreshold').evaluate(el => Number.parseFloat(el.style.getPropertyValue('--range-progress')));
+  assert.ok(Math.abs(progress - (42 - 5) / (100 - 5) * 100) < .001);
+  const track = await sharp(await page.locator('#darkThreshold').screenshot()).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixel = x => [...track.data.subarray((Math.floor(track.info.height / 2) * track.info.width + x) * 3, (Math.floor(track.info.height / 2) * track.info.width + x) * 3 + 3)];
+  assert.deepEqual(pixel(30), [83, 167, 255]);
+  assert.deepEqual(pixel(track.info.width - 30), [53, 68, 90]);
+  console.log('PASS 滑块真实像素：左侧亮蓝、右侧暗灰，默认进度准确');
+  await page.locator('.settings-panel').evaluate(el => el.open = false);
 
   const fixtures = await page.evaluate((names) => {
     const out = {};
@@ -195,10 +205,19 @@ async function main() {
   await page.evaluate(async () => { await navigator.serviceWorker.ready; });
   await page.reload();
   await page.locator('.hero h1').waitFor();
-  await context.setOffline(true);
-  await page.reload();
-  await page.locator('.hero h1').waitFor();
-  await context.setOffline(false);
+  if (process.env.CROPPER_BROWSER === 'webkit') {
+    // WebKit 的协议级 offline 模拟会在导航前报内部错误；关闭真实 HTTP 来源验证缓存。
+    const port = server.address().port;
+    await new Promise(resolve => { server.close(resolve); server.closeIdleConnections(); });
+    await page.reload();
+    await page.locator('.hero h1').waitFor();
+    await new Promise(resolve => server.listen(port, '127.0.0.1', resolve));
+  } else {
+    await context.setOffline(true);
+    await page.reload();
+    await page.locator('.hero h1').waitFor();
+    await context.setOffline(false);
+  }
 
   // --- 自动更新：手上有图片时不打断当前处理 ---
   await upload('border');

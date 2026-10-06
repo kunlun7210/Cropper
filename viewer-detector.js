@@ -220,6 +220,6 @@
       elong: marks.some(mark => mark.kind === "elong"), overlay: Boolean(overlay || bottom < photoEnd), touchingToolbar, marks,
       photo: { top: gapEnd, bottom: photoEnd, left: 0, right: w } };
   }
-  scope.ViewerDetector = { analyze, locate: profile => analyze(profile, true) };
+  scope.ViewerDetector = { analyze, locate: profile => analyze(profile, true), findMarks: (profile, photoEnd) => ViewerMarks.find(profile, Math.round(photoEnd), HEART) };
   if (typeof module !== "undefined" && module.exports) module.exports = scope.ViewerDetector;
 })(typeof window !== "undefined" ? window : globalThis);

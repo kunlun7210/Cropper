@@ -126,7 +126,7 @@ async function main() {
   await page.waitForFunction(() => state.items[0]?.file.name === 'ctrip.png');
   await page.locator('#ocrCorners').check();
   await page.evaluate(() => state.pending);
-  assert.match(await page.locator('#ocrStatus').innerText(), /完成/);
+  assert.match(await page.locator('#ocrStatus').innerText(), /^四角增强识别完成/);
   const integrated = await page.evaluate(() => ({ values: state.items[0].values, photo: state.items[0].photo, marks: state.items[0].ocrMarks, observations: state.items[0].ocrCache.scan.observations }));
   assert.equal(integrated.values.top, 50);
   assert.ok(integrated.values.bottom > 115 && integrated.values.bottom < 160);
@@ -145,7 +145,7 @@ async function main() {
   await page.locator('#fileInput').setInputFiles({ name: 'offline-ctrip.png', mimeType: 'image/png', buffer: Buffer.from(fixture, 'base64') });
   await page.waitForFunction(() => state.items[0]?.file.name === 'offline-ctrip.png');
   await page.evaluate(() => state.pending);
-  assert.match(await page.locator('#ocrStatus').innerText(), /完成/);
+  assert.match(await page.locator('#ocrStatus').innerText(), /^四角增强识别完成/);
   assert.ok(await page.evaluate(() => state.items[0].ocrMarks.length > 0));
   console.log('PASS cached OCR including worker/models runs after offline reload');
   await context.setOffline(false);
@@ -186,18 +186,18 @@ async function main() {
     }
     await page.locator('#ocrCorners').check();
     await page.locator('#fileInput').setInputFiles(files);
-    await page.waitForFunction(() => state.items.length === 49);
+    await page.waitForFunction(count => state.items.length === count, files.length, { timeout: 120000 });
     const before = await page.evaluate(() => state.items.map(item => ({ name: item.file.name, values: { ...item.values } })));
     await page.evaluate(() => state.pending);
-    assert.match(await page.locator('#ocrStatus').innerText(), /完成/);
+    assert.match(await page.locator('#ocrStatus').innerText(), /^四角增强识别完成/);
     realSamples = await page.evaluate(() => state.items.map(item => ({ name: item.file.name, values: item.values, photo: item.photo, marks: item.ocrMarks, scan: item.ocrCache?.scan })));
     for (let i = 0; i < realSamples.length; i++) {
       assert.equal(realSamples[i].name, before[i].name);
       // Corner OCR never restores already-confirmed borders or logos.
       for (const side of ['top', 'bottom', 'left', 'right']) assert.ok(realSamples[i].values[side] >= before[i].values[side]);
-      if (realSamples[i].scan) assert.equal(realSamples[i].scan.observations.length, 4);
+      if (realSamples[i].photo) assert.equal(realSamples[i].scan?.observations.length, 4);
     }
-    console.log('PASS optional OCR batch on all 49 private samples; four corners and order preserved');
+    console.log(`PASS optional OCR batch on all ${files.length} private samples; four corners and order preserved`);
   }
   const layout = [];
   for (const width of [320, 393, 402, 440, 874, 1280]) {
