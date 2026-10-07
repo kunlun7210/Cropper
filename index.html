@@ -28,7 +28,7 @@
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:alt" content="深黑底白色裁字图标" />
     <meta name="twitter:image" content="https://kunlun7210.github.io/Cropper/icons/icon-cai-v1-512.png" />
-    <link rel="manifest" href="manifest.json?v=1.7.1" />
+    <link rel="manifest" href="manifest.json?v=1.7.2" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -39,7 +39,7 @@
           <h1>截图智能裁剪</h1>
           <p class="intro">识别照片主体，裁掉多余留白、界面栏与角落标识。</p>
         </div>
-        <div class="badge">v1.7.1 · 2026.10.06</div>
+        <div class="badge">v1.7.2 · 2026.10.07</div>
       </header>
 
       <section class="panel import-panel">
@@ -57,6 +57,7 @@
       <details class="panel settings-panel">
         <summary class="settings-summary">
           <h2>检测参数</h2>
+          <button id="resetSettings" class="text-button" type="button">恢复默认</button>
           <span class="settings-toggle">
             <span class="settings-toggle-open">展开参数</span>
             <span class="settings-toggle-close">收起参数</span>
@@ -65,10 +66,6 @@
         </summary>
 
         <div class="settings-body">
-          <div class="settings-actions">
-            <button id="resetSettings" class="text-button" type="button">恢复默认</button>
-          </div>
-
           <div class="settings-grid">
             <label class="setting">
               <span>黑色阈值 <output id="darkThresholdValue">42</output></span>
@@ -92,30 +89,33 @@
             </label>
           </div>
 
-          <label class="viewer-option">
-            <input id="trimViewer" type="checkbox" checked /> 裁掉底部标识 / 点赞
-            <small>包含高德地图、艺龙文字及旁边 logo，也识别独立爱心。覆盖在照片上时裁掉所在的底部窄条。关闭后保留原有检测。</small>
-          </label>
-
-          <label class="viewer-option">
-            <input id="ocrCorners" type="checkbox" /> 四角增强识别（OCR）
-            <small>可选：只扫描主体四角，支持高德、百度、腾讯地图，以及美团、大众点评、携程、艺龙、同程、飞猪、去哪儿、淘宝。文字识别后辅助校验旁边 logo。首次需联网下载约 80 MB；缓存后本地处理，不上传图片。</small>
-          </label>
-          <p id="ocrStatus" class="ocr-status" role="status">增强识别未开启；原有轻量检测照常使用。</p>
+          <div class="viewer-options">
+            <div class="viewer-option">
+              <label><input id="detectChrome" type="checkbox" checked /> 界面栏</label>
+              <small>一并裁掉应用状态栏、导航栏与看图留白（含彩色渐变、模糊背景）</small>
+            </div>
+            <div class="viewer-option">
+              <label><input id="trimViewer" type="checkbox" checked /> 裁掉底部标识 / 点赞</label>
+              <small>包含高德地图、艺龙文字及旁边 logo，也识别独立爱心。覆盖在照片上时裁掉所在的底部窄条。关闭后保留原有检测。</small>
+            </div>
+            <div class="viewer-option">
+              <label><input id="ocrCorners" type="checkbox" /> 四角增强识别（OCR）</label>
+              <small>可选：只扫描主体四角，支持高德、百度、腾讯地图，以及美团、大众点评、携程、艺龙、同程、飞猪、去哪儿、淘宝。文字识别后辅助校验旁边 logo。首次需联网下载约 80 MB；缓存后本地处理，不上传图片。</small>
+              <p id="ocrStatus" class="ocr-status" role="status">增强识别未开启；原有轻量检测照常使用。</p>
+            </div>
+          </div>
 
           <div class="side-options">
             <span class="side-label">检测方向</span>
-            <label><input class="side-toggle" data-side="top" type="checkbox" checked /> 上</label>
-            <label><input class="side-toggle" data-side="bottom" type="checkbox" checked /> 下</label>
-            <label><input class="side-toggle" data-side="left" type="checkbox" checked /> 左</label>
-            <label><input class="side-toggle" data-side="right" type="checkbox" checked /> 右</label>
+            <div class="side-checks">
+              <label><input class="side-toggle" data-side="top" type="checkbox" checked /> 上</label>
+              <label><input class="side-toggle" data-side="bottom" type="checkbox" checked /> 下</label>
+              <label><input class="side-toggle" data-side="left" type="checkbox" checked /> 左</label>
+              <label><input class="side-toggle" data-side="right" type="checkbox" checked /> 右</label>
+            </div>
             <button id="reanalyze" class="primary-button small" type="button">重新检测</button>
           </div>
 
-          <div class="side-options">
-            <span class="side-label">界面栏</span>
-            <label><input id="detectChrome" type="checkbox" checked /> 一并裁掉应用状态栏、导航栏与看图留白（含彩色渐变、模糊背景）</label>
-          </div>
         </div>
       </details>
 

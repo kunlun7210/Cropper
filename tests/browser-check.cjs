@@ -53,7 +53,7 @@ async function main() {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
-  assert.equal(await page.locator('.badge').innerText(), 'v1.7.1 · 2026.10.06');
+  assert.equal(await page.locator('.badge').innerText(), 'v1.7.2 · 2026.10.07');
   assert.equal(await page.title(), '截图智能裁剪');
   assert.equal(await page.locator('.hero h1').innerText(), '截图智能裁剪');
   assert.equal(await page.locator('.intro').innerText(), '识别照片主体，裁掉多余留白、界面栏与角落标识。');
@@ -67,14 +67,48 @@ async function main() {
   assert.equal(await page.locator('#batchActions').isVisible(), false, '空状态不得显示批量操作条');
   console.log('PASS 空状态隐藏批量操作条（.batch-actions[hidden] 生效）');
   await page.locator('.settings-panel').evaluate(el => el.open = true);
+  const typography = await page.evaluate(() => ({
+    titles: [...document.querySelectorAll('.settings-summary h2, .setting > span, .setting output, .viewer-option > label')].map(el => getComputedStyle(el).fontSize),
+    descriptions: [...document.querySelectorAll('.setting small, .viewer-option small, #ocrStatus')].map(el => getComputedStyle(el).fontSize),
+  }));
+  assert.ok(typography.titles.every(size => size === '14px'));
+  assert.ok(typography.descriptions.every(size => size === '12px'));
+  assert.deepEqual(await page.locator('.viewer-option input').evaluateAll(inputs => inputs.map(input => input.id)), ['detectChrome', 'trimViewer', 'ocrCorners']);
+  assert.equal(await page.locator('#ocrCorners').isChecked(), false);
+  console.log('PASS 确认后的紧凑布局：14px 标题/数值、12px 说明，识别选项统一排列且 OCR 默认关闭');
   const progress = await page.locator('#darkThreshold').evaluate(el => Number.parseFloat(el.style.getPropertyValue('--range-progress')));
   assert.ok(Math.abs(progress - (42 - 5) / (100 - 5) * 100) < .001);
   const track = await sharp(await page.locator('#darkThreshold').screenshot()).removeAlpha().raw().toBuffer({ resolveWithObject: true });
   const pixel = x => [...track.data.subarray((Math.floor(track.info.height / 2) * track.info.width + x) * 3, (Math.floor(track.info.height / 2) * track.info.width + x) * 3 + 3)];
   assert.deepEqual(pixel(30), [83, 167, 255]);
   assert.deepEqual(pixel(track.info.width - 30), [53, 68, 90]);
-  console.log('PASS 滑块真实像素：左侧亮蓝、右侧暗灰，默认进度准确');
+  const column = x => Array.from({ length: track.info.height }, (_, y) => [...track.data.subarray((y * track.info.width + x) * 3, (y * track.info.width + x) * 3 + 3)]);
+  const isBlue = ([r, g, b]) => r >= 70 && r <= 210 && g >= 145 && b >= 215;
+  assert.equal(column(30).filter(isBlue).length, 4);
+  const thumbPixels = column(Math.round(9 + (track.info.width - 18) * progress / 100)).filter(isBlue).length;
+  assert.ok(thumbPixels >= 16 && thumbPixels <= 20);
+  assert.equal(await page.locator('#darkThreshold').evaluate(el => el.getBoundingClientRect().height), 44);
+  console.log('PASS 滑块真实像素：亮条 4px、圆圈约 18px，左亮蓝/右暗灰，触控高度仍 44px');
+  await page.locator('#darkThreshold').focus();
+  await page.locator('#darkThreshold').press('ArrowRight');
+  assert.equal(await page.locator('#darkThreshold').inputValue(), '43');
+  await page.locator('#resetSettings').click();
+  assert.equal(await page.locator('#darkThreshold').inputValue(), '42');
+  assert.equal(await page.locator('.settings-panel').evaluate(el => el.open), true);
+  await page.locator('#padding').evaluate(el => el.value = '-5');
+  await page.locator('#resetSettings').press('Enter');
+  assert.equal(await page.locator('#padding').inputValue(), '0');
+  assert.equal(await page.locator('.settings-panel').evaluate(el => el.open), true);
   await page.locator('.settings-panel').evaluate(el => el.open = false);
+  await page.locator('#padding').evaluate(el => el.value = '-5');
+  await page.locator('#resetSettings').press('Space');
+  assert.equal(await page.locator('#padding').inputValue(), '0');
+  assert.equal(await page.locator('.settings-panel').evaluate(el => el.open), false);
+  await page.locator('.settings-summary').click({ position: { x: 10, y: 10 } });
+  assert.equal(await page.locator('.settings-panel').evaluate(el => el.open), true);
+  await page.locator('.settings-summary').click({ position: { x: 10, y: 10 } });
+  assert.equal(await page.locator('.settings-panel').evaluate(el => el.open), false);
+  console.log('PASS 小号滑块键盘操作、恢复默认点击/Enter/空格不误折叠，标题仍可正常展开/收起');
 
   const fixtures = await page.evaluate((names) => {
     const out = {};
@@ -209,9 +243,14 @@ async function main() {
   assert.deepEqual(shares, [{ title: '截图智能裁剪', count: 1 }, { title: '截图智能裁剪（1张）', count: 1 }]);
   console.log('PASS 单张和批量系统分享标题统一为新名称（测试替身，不发送文件）');
 
+  await page.locator('.settings-panel').evaluate(el => el.open = true);
   for (const viewport of [{ width: 320, height: 850 }, { width: 393, height: 852 }, { width: 402, height: 874 }, { width: 440, height: 956 }, { width: 874, height: 402 }, { width: 1200, height: 900 }]) {
     await page.setViewportSize(viewport);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.ok(await page.locator('.settings-panel').evaluate(panel => {
+      const bounds = panel.getBoundingClientRect();
+      return [...panel.querySelectorAll('input, button, .settings-toggle, .viewer-option > label')].every(el => { const box = el.getBoundingClientRect(); return box.left >= bounds.left && box.right <= bounds.right; });
+    }));
     assert.equal(await page.locator('.hero h1').evaluate(el => {
       const range = document.createRange(); range.selectNodeContents(el);
       return range.getClientRects().length;
@@ -225,9 +264,14 @@ async function main() {
       }));
       assert.ok(layout.title >= layout.badge, '版本号不得占用标题行');
       assert.equal(layout.intro, layout.hero, '手机副标题使用标题区完整宽度');
+      if (viewport.width >= 402) {
+        const directions = await page.evaluate(() => ({ button: document.querySelector('#reanalyze').getBoundingClientRect().top, checks: document.querySelector('.side-checks').getBoundingClientRect().top }));
+        assert.equal(directions.button, directions.checks, '常用手机宽度的重新检测与方向选项保持同一行');
+      }
     }
   }
   console.log('PASS 手机竖/横屏与桌面宽度均无横向溢出');
+  await page.locator('.settings-panel').evaluate(el => el.open = false);
 
   // --- Service Worker 缓存启动 ---
   await page.setViewportSize({ width: 402, height: 874 });

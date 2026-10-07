@@ -857,7 +857,12 @@ $("trimViewer")?.addEventListener("change", applyChangedSettings);
 $("ocrCorners")?.addEventListener("change", applyChangedSettings);
 $("fileInput").addEventListener("change", (event) => loadFiles(event.target.files));
 $("reanalyze").addEventListener("click", reanalyzeAll);
-$("resetSettings").addEventListener("click", resetSettings);
+$("resetSettings").addEventListener("click", (event) => {
+  // 按钮在折叠标题内：恢复参数时不要触发 summary 的展开/收起。
+  event.preventDefault();
+  event.stopPropagation();
+  resetSettings();
+});
 $("shareAll").addEventListener("click", shareAllItems);
 $("downloadAll").addEventListener("click", () => downloadAllItems());
 

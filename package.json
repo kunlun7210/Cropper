@@ -1,6 +1,6 @@
 {
   "name": "cropper-trim-black-border",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "private": true,
   "description": "截图智能裁剪：识别照片主体，裁掉多余留白、界面栏与角落标识。",
   "scripts": {
