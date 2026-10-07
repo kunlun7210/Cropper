@@ -1,4 +1,4 @@
-const CACHE_NAME = "screenshot-trimmer-v28";
+const CACHE_NAME = "screenshot-trimmer-v29";
 const OCR_CACHE = "cropper-ocr-v1";
 const ASSETS = [
   "./", "./index.html", "./styles.css", "./viewer-marks.js", "./viewer-detector.js", "./frame-detector.js", "./corner-detector.js", "./corner-ocr.js", "./app.js", "./manifest.json",
