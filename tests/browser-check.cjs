@@ -72,10 +72,10 @@ async function main() {
     descriptions: [...document.querySelectorAll('.setting small, .viewer-option small, #ocrStatus')].map(el => getComputedStyle(el).fontSize),
   }));
   assert.ok(typography.titles.every(size => size === '14px'));
-  assert.ok(typography.descriptions.every(size => size === '12px'));
+  assert.ok(typography.descriptions.every(size => size === '13px'));
   assert.deepEqual(await page.locator('.viewer-option input').evaluateAll(inputs => inputs.map(input => input.id)), ['detectChrome', 'trimViewer', 'ocrCorners']);
   assert.equal(await page.locator('#ocrCorners').isChecked(), false);
-  console.log('PASS 确认后的紧凑布局：14px 标题/数值、12px 说明，识别选项统一排列且 OCR 默认关闭');
+  console.log('PASS 确认后的紧凑布局：14px 标题/数值、13px 说明，识别选项统一排列且 OCR 默认关闭');
   const progress = await page.locator('#darkThreshold').evaluate(el => Number.parseFloat(el.style.getPropertyValue('--range-progress')));
   assert.ok(Math.abs(progress - (42 - 5) / (100 - 5) * 100) < .001);
   const track = await sharp(await page.locator('#darkThreshold').screenshot()).removeAlpha().raw().toBuffer({ resolveWithObject: true });
