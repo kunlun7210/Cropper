@@ -31,6 +31,37 @@ test('内部亮横线不能把主体截成多段',()=> {
   const s=sample();for(let y=420;y<428;y++)for(let x=0;x<s.width;x++)s.pixels.set([250,250,250,255],(y*s.width+x)*4);
   const found=F.analyze(s);assert.ok(found);assert.ok(found.photo.top<300&&found.photo.bottom>580);
 });
+test('没有右侧文字的紧凑导航栏需同时有状态栏、两个控件和黑色底边', () => {
+  function compactViewer({ status = true, counter = true, footer = true } = {}) {
+    const s = sample(false);
+    const { width, height, pixels } = s;
+    const rect = (x0, y0, x1, y1, level) => {
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        pixels.set([level, level, level, 255], (y * width + x) * 4);
+      }
+    };
+    rect(0, 0, width, 107, 48);
+    rect(0, 107, width, height, 170);
+    if (footer) rect(0, 800, width, height, 0);
+    if (status) {
+      for (let x = 50; x < 95; x += 7) rect(x, 26, x + 3, 38, 0);
+      for (let x = 288; x < 356; x += 7) rect(x, 26, x + 3, 38, 0);
+    }
+    for (let y = 75; y < 94; y++) {
+      const x = 24 + Math.abs(y - 84);
+      rect(x, y, x + 3, y + 1, 250);
+    }
+    if (counter) for (let x = 190; x < 210; x += 6) rect(x, 78, x + 4, 92, 250);
+    return s;
+  }
+  const frame = F.analyze(compactViewer());
+  assert.equal(frame?.kind, 'viewer-toolbar');
+  assert.ok(Math.abs(frame.photo.top - 107) <= 2);
+  assert.ok(Math.abs(frame.photo.bottom - 800) <= 2);
+  for (const signal of ['status', 'counter', 'footer']) {
+    assert.equal(F.analyze(compactViewer({ [signal]: false })), null, signal);
+  }
+});
 test('新照片原始边界换算后模板仍按整数采样行扫描',()=> {
   const calls = [], scope = { ViewerMarks: { find: (...args) => calls.push(args) } };
   vm.runInNewContext(fs.readFileSync(require.resolve('../viewer-detector.js'), 'utf8'), scope);

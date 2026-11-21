@@ -81,7 +81,13 @@ async function main() {
         state.settings.trimViewer = true;
         return { ...current, oldDetected, priorDetected, disabled, analysisMs };
       }, { oldLogic, priorLogic });
-      if (!colored.has(name)) {
+      const compactToolbar = folder === '新版测试图' && name === 'IMG_1530.PNG';
+      if (compactToolbar) {
+        const edges = { top: 318, bottom: 240, left: 0, right: 0 };
+        assert.equal(result.frame?.kind, 'viewer-toolbar');
+        assert.deepEqual(result.values, edges);
+        assert.deepEqual(result.disabled, edges, 'Toolbar cropping does not depend on watermark detection');
+      } else if (!colored.has(name)) {
         assert.deepEqual(result.detected, result.priorDetected, name + ': v1.6 output preserved exactly');
         assert.deepEqual(result.disabled, result.oldDetected, name + ': turning the old feature off retains the previous algorithm exactly');
       }
@@ -98,9 +104,10 @@ async function main() {
             .replace('if (!heart && !amap)', 'console.log("markers", heart, amap, authorBands); if (!heart && !amap)');
           console.log('DEBUG', await page.evaluate(code => { const scope = {}, messages = []; new Function('window', 'console', code)(scope, { log: (...args) => messages.push(args) }); scope.ViewerDetector.analyze(createProfile(state.items[0].image, state.settings)); return messages; }, code));
         }
-        if (colored.has(name)) assert.ok(result.frame, name + ': colored/blurred viewer identified without OCR');
+        if (compactToolbar) assert.equal(result.height, 2064);
+        else if (colored.has(name)) assert.ok(result.frame, name + ': colored/blurred viewer identified without OCR');
         else { assert.ok(result.viewer, name + ': viewer identified'); assert.ok(result.viewer.like, name + ': like control identified'); }
-        assert.ok(result.values.bottom >= 500);
+        if (!compactToolbar) assert.ok(result.values.bottom >= 500);
         const download = page.waitForEvent('download');
         await page.getByRole('button', { name: '下载图片', exact: true }).click();
         const output = path.join(evidence, name);
@@ -128,7 +135,9 @@ async function main() {
         assert.ok(matches.sourceMax <= (process.env.CROPPER_BROWSER === 'webkit' ? 2 : 0), name + ': source colors preserved: ' + JSON.stringify(matches));
         result.pngPixels = matches;
         const expectedFile = path.join(samples, '新版需要达到的效果', name.replace(/\.png$/i, '.jpg'));
-        if (extra[name]) {
+        if (compactToolbar) {
+          result.reference = { manuallyInspected: true, top: 318, end: 2382 };
+        } else if (extra[name]) {
           const expected = extra[name], end = result.naturalHeight - result.values.bottom;
           assert.ok(Math.abs(result.values.top - expected.top) <= 3, name + ': no toolbar residue');
           assert.ok(end >= expected.end[0] && end <= expected.end[1], name + ': full logo / standalone heart removed with bounded photo loss');

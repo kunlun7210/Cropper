@@ -6,6 +6,41 @@
     for (let y = Math.max(0, Math.ceil(a)); y < Math.min(rows.length, b); y++) { sum += rows[y]?.[key] || 0; count++; }
     return count ? sum / count : Infinity;
   };
+  function toolbarFrame(w, h, pixels, rows) {
+    // Compact viewers may have only a back chevron and a centered photo count.
+    // Require a thin, dark toolbar above a sharp seam and solid black below the photo.
+    let bottom = h - 4;
+    while (bottom > h * .82 && rows[bottom].light < 12) bottom--;
+    if (bottom <= h * .82 || bottom > h * .96) return null;
+    bottom++;
+
+    const glyphStart = Math.floor(h * .075);
+    for (let top = Math.ceil(h * .105); top < h * .16; top++) {
+      const { jump, coverage } = rows[top];
+      if (jump < 30 || coverage < .85) continue;
+      const before = average(rows, top - h * .013, top - 3, 'light');
+      const after = average(rows, top + 3, top + h * .013, 'light');
+      if (before < 25 || before > 90 || after < before + 40) continue;
+
+      let back = 0, count = 0, outside = 0;
+      let backTop = top, backBottom = glyphStart, countTop = top, countBottom = glyphStart;
+      for (let y = glyphStart; y < top - 2; y++) for (let x = 0; x < w; x++) {
+        const i = (y * w + x) * 4;
+        if (Math.min(pixels[i], pixels[i + 1], pixels[i + 2]) < 225) continue;
+        if (x >= w * .035 && x < w * .13) {
+          back++; backTop = Math.min(backTop, y); backBottom = y;
+        } else if (x >= w * .43 && x < w * .57) {
+          count++; countTop = Math.min(countTop, y); countBottom = y;
+        } else outside++;
+      }
+      if (back < w * w * .00012 || count < w * w * .0002 || outside > back * .25) continue;
+      if (Math.min(backBottom - backTop, countBottom - countTop) < w * .018
+        || Math.max(backBottom - backTop, countBottom - countTop) > w * .065
+        || Math.abs(backTop + backBottom - countTop - countBottom) > w * .025) continue;
+      return { top, bottom, height: bottom - top, score: jump * coverage, kind: 'viewer-toolbar' };
+    }
+    return null;
+  }
   function inspect(profile) {
     const { width: w, height: h, pixels: p } = profile;
     if (!p || w < 180 || h / w < 1.5 || h / w > 2.8) return null;
@@ -80,13 +115,13 @@
       if (!best || height > best.height + 4 || (Math.abs(height - best.height) <= 4 && score > best.score))
         best = { top: top.y, bottom: bottom.y, height, before, after, inside, score };
     }
-    return { ui, context, backgroundNoise, candidates, best };
+    return { ui, context, backgroundNoise, candidates, best: best || toolbarFrame(w, h, p, rows) };
   }
   function analyze(profile) {
     const result = inspect(profile);
     if (!result?.best) return null;
-    const { top, bottom, score } = result.best;
-    return { photo: { left: 0, right: profile.width, top, bottom }, score, kind: 'viewer-backdrop' };
+    const { top, bottom, score, kind = 'viewer-backdrop' } = result.best;
+    return { photo: { left: 0, right: profile.width, top, bottom }, score, kind };
   }
   const api = { analyze, inspect };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
