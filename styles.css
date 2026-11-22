@@ -204,6 +204,7 @@ input[type="range"]:focus-visible { outline: 2px solid var(--blue); outline-offs
 @media (max-width: 650px) {
   .hero { position: relative; display: block; }
   .hero .eyebrow { padding-right: 140px; }
+  .hero h1 { padding-top: 48px; }
   .hero .badge { position: absolute; top: 0; right: 0; }
   .settings-grid, .preview-grid { grid-template-columns: 1fr; }
   .side-options { column-gap: 6px; }
