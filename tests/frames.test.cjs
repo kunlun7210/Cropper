@@ -70,3 +70,28 @@ test('新照片原始边界换算后模板仍按整数采样行扫描',()=> {
   assert.equal(calls[0][0], profile);
   assert.equal(calls[0][1], 653);
 });
+
+test('看图界面独立检测不等宽黑边，不受右侧点赞影响', () => {
+  const width = 460, height = 1000;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  function fill(left, top, right, bottom, light) {
+    for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) {
+      pixels.set([light, light, light, 255], (y * width + x) * 4);
+    }
+  }
+  fill(0, 0, width, 121, 42);
+  for (const x of [30, 216, 414]) fill(x, 86, x + 8, 99, 250);
+  fill(41, 135, 407, 787, 160);
+  fill(405, 790, 441, 806, 250);
+  const scope = { ViewerMarks: { find: () => [{ kind: 'heart', x: 385, y: 789, height: 18 }] } };
+  vm.runInNewContext(fs.readFileSync(require.resolve('../viewer-detector.js'), 'utf8'), scope);
+  const analyze = () => scope.ViewerDetector.analyze({ width, height, pixels });
+  const result = analyze();
+  assert.deepEqual({ ...result.photo }, { left: 41, right: 407, top: 135, bottom: 787 });
+  assert.equal(result.overlay, false);
+
+  fill(0, 135, 41, 460, 160);
+  assert.deepEqual({ ...analyze().photo }, { left: 0, right: width, top: 135, bottom: 787 });
+  fill(0, 0, width, 121, 0);
+  assert.equal(analyze(), null);
+});

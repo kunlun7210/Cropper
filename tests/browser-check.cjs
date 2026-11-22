@@ -53,7 +53,7 @@ async function main() {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(url);
-  assert.equal(await page.locator('.badge').innerText(), 'v1.7.2 · 2026.10.07');
+  assert.equal(await page.locator('.badge').innerText(), 'v2.0 · 2026.11.22');
   assert.equal(await page.title(), '截图智能裁剪');
   assert.equal(await page.locator('.hero h1').innerText(), '截图智能裁剪');
   assert.equal(await page.locator('.intro').innerText(), '识别照片主体，裁掉多余留白、界面栏与角落标识。');
@@ -64,7 +64,7 @@ async function main() {
   assert.deepEqual(versionStyle, { border: '0px', background: 'rgba(0, 0, 0, 0)' });
   console.log('PASS 版本日期格式正确且没有外框');
   assert.deepEqual(await page.locator('.footer-note p').evaluateAll(paragraphs => paragraphs.map(el => getComputedStyle(el).fontSize)), ['14px', '14px']);
-  console.log('PASS 底部两段提示均为 14px，版本号保持 v1.7.2');
+  console.log('PASS 底部两段提示均为 14px');
 
   assert.equal(await page.locator('#batchActions').isVisible(), false, '空状态不得显示批量操作条');
   console.log('PASS 空状态隐藏批量操作条（.batch-actions[hidden] 生效）');

@@ -373,22 +373,29 @@ function refineViewerEdge(image, estimate, fromTop) {
   return estimate;
 }
 
-function refineFrameEdge(image, estimate) {
+function refineFrameEdge(image, estimate, verticalSpan = null) {
   // 在原始像素上找 RGB 跳变，不用黑色阈值细化彩色边界。
   const radius = Math.max(6, Math.ceil(image.naturalHeight / 1000) * 4);
-  const start = clamp(estimate - radius, 1, image.naturalHeight - 2);
-  const end = clamp(estimate + radius, start + 1, image.naturalHeight - 1);
+  const dimension = verticalSpan ? image.naturalWidth : image.naturalHeight;
+  const start = clamp(estimate - radius, 1, dimension - 2);
+  const end = clamp(estimate + radius, start + 1, dimension - 1);
   const canvas = document.createElement('canvas');
-  canvas.width = image.naturalWidth; canvas.height = end - start + 1;
+  const depth = end - start + 1;
+  canvas.width = verticalSpan ? depth : image.naturalWidth;
+  canvas.height = verticalSpan ? verticalSpan.bottom - verticalSpan.top : depth;
   const g = canvas.getContext('2d', { willReadFrequently: true });
-  g.drawImage(image, 0, start - 1, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+  g.drawImage(image, verticalSpan ? start - 1 : 0, verticalSpan ? verticalSpan.top : start - 1,
+    canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
   const p = g.getImageData(0, 0, canvas.width, canvas.height).data;
+  const span = verticalSpan ? canvas.height : canvas.width;
+  const step = verticalSpan ? 4 : canvas.width * 4;
   let best = { y: estimate, score: 0 };
-  for (let y = 1; y < canvas.height; y++) {
+  for (let y = 1; y < depth; y++) {
     const differences = [];
-    for (let x = 0; x < canvas.width; x += 2) {
+    for (let x = 0; x < span; x += 2) {
+      const offset = (verticalSpan ? x * canvas.width + y : y * canvas.width + x) * 4;
       let d = 0;
-      for (let c = 0; c < 3; c++) d += Math.abs(p[(y * canvas.width + x) * 4 + c] - p[((y - 1) * canvas.width + x) * 4 + c]) / 3;
+      for (let c = 0; c < 3; c++) d += Math.abs(p[offset + c] - p[offset - step + c]) / 3;
       differences.push(d);
     }
     differences.sort((a, b) => a - b);
@@ -426,6 +433,21 @@ function analyzeImage(image) {
   }
   // 原有看图布局即使关闭底栏功能也不走新分支，保留其原来的边界/开关语义。
   const existingLayout = !viewer && state.settings.detectChrome ? ViewerDetector.locate(profile) : null;
+  const viewerPhoto = (viewer || existingLayout)?.photo;
+  let inset = null;
+  if (viewerPhoto?.left > 0 && viewerPhoto.right < profile.width) {
+    const margin = (viewerPhoto.bottom - viewerPhoto.top) * .15;
+    const span = {
+      top: Math.round((viewerPhoto.top + margin) / profile.height * image.naturalHeight),
+      bottom: Math.round((viewerPhoto.bottom - margin) / profile.height * image.naturalHeight),
+    };
+    inset = {
+      left: refineFrameEdge(image, Math.round(viewerPhoto.left / profile.width * image.naturalWidth), span),
+      right: refineFrameEdge(image, Math.round(viewerPhoto.right / profile.width * image.naturalWidth), span),
+    };
+    if (state.settings.sides.left) detected.left = inset.left;
+    if (state.settings.sides.right) detected.right = image.naturalWidth - inset.right;
+  }
   let frame = state.settings.detectChrome && !viewer && !existingLayout && typeof FrameDetector !== 'undefined'
     ? FrameDetector.analyze(profile) : null;
   if (frame) {
@@ -450,8 +472,8 @@ function analyzeImage(image) {
     if (frame) photo = { ...frame.photo };
     else if (layout?.photo) {
       photo = {
-        left: Math.round(layout.photo.left / profile.width * image.naturalWidth),
-        right: Math.round(layout.photo.right / profile.width * image.naturalWidth),
+        left: inset?.left ?? Math.round(layout.photo.left / profile.width * image.naturalWidth),
+        right: inset?.right ?? Math.round(layout.photo.right / profile.width * image.naturalWidth),
         top: layout.touchingToolbar ? Math.ceil(layout.photo.top / profile.height * image.naturalHeight)
           : refineViewerEdge(image, Math.round(layout.photo.top / profile.height * image.naturalHeight), true),
         bottom: refineViewerEdge(image, Math.round(layout.photo.bottom / profile.height * image.naturalHeight), false),

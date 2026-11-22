@@ -88,7 +88,10 @@ test('bookmark, Apple, PWA and preview references all use cai-v1 assets', () => 
   assert.match(html, /rel="icon"[^>]+favicon-cai-v1.ico/);
   assert.match(html, /rel="icon"[^>]+icon-cai-v1.svg/);
   const manifestHref = html.match(/rel="manifest" href="([^"]+)"/)[1];
-  assert.equal(new URL(manifestHref, 'https://example.test/').searchParams.get('v'), JSON.parse(read('package.json')).version);
+  const publicVersion = new URL(manifestHref, 'https://example.test/').searchParams.get('v');
+  assert.match(publicVersion, /^\d+\.\d+$/);
+  assert.equal(JSON.parse(read('package.json')).version, `${publicVersion}.0`);
+  assert.ok(html.includes(`class="badge">v${publicVersion} · `));
   assert.match(html, /property="og:image" content="https:\/\/kunlun7210.github.io\/Cropper\/icons\/icon-cai-v1-512.png"/);
   assert.match(html, /name="twitter:image" content="https:\/\/kunlun7210.github.io\/Cropper\/icons\/icon-cai-v1-512.png"/);
   assert.deepEqual(manifest.icons.map(icon => icon.src), [iconPath(180), iconPath(192), iconPath(512)]);

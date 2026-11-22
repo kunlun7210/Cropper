@@ -43,6 +43,29 @@
     "0100000000000111000000011000000111110000",
   ];
 
+  function insetSides(dark, w, top, bottom) {
+    const leftVotes = new Uint16Array(w), rightVotes = new Uint16Array(w);
+    const margin = Math.floor((bottom - top) * .15);
+    const start = top + margin, end = bottom - margin;
+    const min = Math.ceil(w * .025), max = Math.floor(w * .25);
+    for (let y = start; y < end; y++) {
+      const row = y * w;
+      let left = 0, right = 0;
+      while (left <= max && dark[row + left]) left++;
+      while (right <= max && dark[row + w - 1 - right]) right++;
+      if (left < min || right < min || left > max || right > max) continue;
+      leftVotes[left]++;
+      rightVotes[right]++;
+    }
+    function stableDepth(votes) {
+      let best = 0;
+      for (let x = min; x <= max; x++) if (votes[x] > votes[best]) best = x;
+      return best && votes[best - 1] + votes[best] + votes[best + 1] >= (end - start) * .70 ? best : 0;
+    }
+    const left = stableDepth(leftVotes), right = stableDepth(rightVotes);
+    return left && right ? { left, right: w - right } : null;
+  }
+
   function analyze(profile, layoutOnly = false) {
     const { width: w, height: h, pixels } = profile;
     if (!pixels || w < 180 || h / w < 1.35 || h / w > 2.8) return null;
@@ -215,10 +238,12 @@
       const author = authorBands.find(band => band.y > heart.y);
       if (author) bottom = Math.min(bottom, author.y - Math.ceil(w * 0.04), heart.y - 3);
     }
+    // Ignore toolbar and footer pixels when measuring the photo's side margins.
+    const inset = !touchingToolbar && (heart || amap || marks.length) && insetSides(dark, w, gapEnd, photoEnd);
     return { top: gapEnd, bottom: h - bottom, like: Boolean(heart),
       amap: Boolean(amap || marks.some(mark => mark.kind === "amap")),
       elong: marks.some(mark => mark.kind === "elong"), overlay: Boolean(overlay || bottom < photoEnd), touchingToolbar, marks,
-      photo: { top: gapEnd, bottom: photoEnd, left: 0, right: w } };
+      photo: { top: gapEnd, bottom: photoEnd, left: inset ? inset.left : 0, right: inset ? inset.right : w } };
   }
   scope.ViewerDetector = { analyze, locate: profile => analyze(profile, true), findMarks: (profile, photoEnd) => ViewerMarks.find(profile, Math.round(photoEnd), HEART) };
   if (typeof module !== "undefined" && module.exports) module.exports = scope.ViewerDetector;
